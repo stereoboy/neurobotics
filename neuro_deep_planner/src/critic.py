@@ -70,7 +70,7 @@ class CriticNetwork:
 
             # Get all the variables in the critic network for exponential moving average, create ema op
             with tf.variable_scope("critic") as scope:
-                self.critic_variables = tf.get_collection(tf.GraphKeys.VARIABLES, scope=scope.name)
+                self.critic_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
             self.ema_obj = tf.train.ExponentialMovingAverage(decay=TARGET_DECAY)
             self.compute_ema = self.ema_obj.apply(self.critic_variables)
 

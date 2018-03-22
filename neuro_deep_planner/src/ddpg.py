@@ -30,7 +30,7 @@ A0_BOUNDS = [-0.4, 0.4]
 A1_BOUNDS = [-0.4, 0.4]
 
 # Should we load a saved net
-PRE_TRAINED_NETS = False
+PRE_TRAINED_NETS = True
 
 # If we use a pretrained net
 NET_LOAD_PATH = os.path.join(os.path.dirname(__file__), os.pardir)+"/pre_trained_networks/pre_trained_networks"
@@ -104,8 +104,8 @@ class DDPG:
                 tf.gfile.MakeDirs(DATA_PATH)
 
             # Initialize summary writers to plot variables during training
-            self.summary_op = tf.merge_all_summaries()
-            self.summary_writer = tf.train.SummaryWriter(TFLOG_PATH)
+            #self.summary_op = tf.merge_all_summaries()
+            self.summary_writer = tf.summary.FileWriter(TFLOG_PATH)
 
             # Initialize actor and critic networks
             self.actor_network = ActorNetwork(self.height, self.action_dim, self.depth, self.session,
@@ -128,7 +128,7 @@ class DDPG:
             if PRE_TRAINED_NETS:
                 self.saver.restore(self.session, NET_LOAD_PATH)
             else:
-                self.session.run(tf.initialize_all_variables())
+                self.session.run(tf.global_variables_initializer())
 
             tf.train.start_queue_runners(sess=self.session)
             time.sleep(1)
@@ -253,7 +253,7 @@ class DDPG:
 
         string = "-"
         q_value = self.critic_network.evaluate([state], [action])
-        stroke_pos = 30 * q_value[0][0] + 30
+        stroke_pos = int(30 * q_value[0][0] + 30)
         if stroke_pos < 0:
             stroke_pos = 0
         elif stroke_pos > 60:

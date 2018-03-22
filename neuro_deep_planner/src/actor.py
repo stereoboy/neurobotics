@@ -64,7 +64,7 @@ class ActorNetwork:
 
             # Get all the variables in the actor network for exponential moving average, create ema op
             with tf.variable_scope("actor") as scope:
-                self.actor_variables = tf.get_collection(tf.GraphKeys.VARIABLES, scope=scope.name)
+                self.actor_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
             self.ema_obj = tf.train.ExponentialMovingAverage(decay=TARGET_DECAY)
             self.compute_ema = self.ema_obj.apply(self.actor_variables)
 

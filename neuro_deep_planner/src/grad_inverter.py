@@ -26,9 +26,10 @@ class GradInverter:
             self.zeros_act_grad_filter = tf.zeros([self.action_size])
             self.act_grad = tf.placeholder(tf.float32, [None, self.action_size])
 
-            self.grad_inverter = tf.select(tf.greater(self.act_grad, self.zeros_act_grad_filter),
-                                           tf.mul(self.act_grad, self.p_diff_max),
-                                           tf.mul(self.act_grad, self.p_diff_min))
+            self.grad_inverter = tf.where(tf.greater(self.act_grad, self.zeros_act_grad_filter),
+                                           tf.multiply(self.act_grad, self.p_diff_max),
+                                           tf.multiply(self.act_grad, self.p_diff_min))
 
     def invert(self, grad, action):
+        print("invert")
         return self.sess.run(self.grad_inverter, feed_dict={self.act_grad: grad, self.action_input: action})

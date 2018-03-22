@@ -50,8 +50,8 @@ class AutoEncoder:
 
         self.session = tf.Session()
 
-        self.summary_op = tf.merge_all_summaries()
-        self.summary_writer = tf.train.SummaryWriter('data')
+        #self.summary_op = tf.merge_all_summaries()
+        self.summary_writer = tf.summary.FileWriter('data')
 
         # Define map input
         self.map_input = tf.placeholder("float", [None, 86, 86, self.depth])
@@ -120,7 +120,7 @@ class AutoEncoder:
                                      })
 
         # Either initialize the variables or load them
-        self.session.run(tf.initialize_all_variables())
+        self.session.run(tf.global_variables_initializer())
         # self.saver.restore(self.session, self.save_path+"")
 
         self.summary_writer.add_graph(self.session.graph)
