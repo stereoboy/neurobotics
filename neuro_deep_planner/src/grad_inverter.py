@@ -31,5 +31,4 @@ class GradInverter:
                                            tf.multiply(self.act_grad, self.p_diff_min))
 
     def invert(self, grad, action):
-        print("invert")
         return self.sess.run(self.grad_inverter, feed_dict={self.act_grad: grad, self.action_input: action})

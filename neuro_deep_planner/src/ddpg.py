@@ -9,6 +9,7 @@ from data_manager import DataManager
 # For saving replay buffer
 import os
 import time
+import datetime
 
 # Visualization
 from state_visualizer import CostmapVisualizer
@@ -30,13 +31,14 @@ A0_BOUNDS = [-0.4, 0.4]
 A1_BOUNDS = [-0.4, 0.4]
 
 # Should we load a saved net
-PRE_TRAINED_NETS = True
+PRE_TRAINED_NETS = False
 
 # If we use a pretrained net
 NET_LOAD_PATH = os.path.join(os.path.dirname(__file__), os.pardir)+"/pre_trained_networks/pre_trained_networks"
 
 # Data Directory
-DATA_PATH = os.path.expanduser('~') + '/rl_nav_data'
+#DATA_PATH = os.path.expanduser('~') + '/rl_nav_data'
+DATA_PATH = './rl_nav_data'
 
 # path to tensorboard data
 TFLOG_PATH = DATA_PATH + '/tf_logs'
@@ -45,7 +47,7 @@ TFLOG_PATH = DATA_PATH + '/tf_logs'
 EXPERIENCE_PATH = DATA_PATH + '/experiences'
 
 # path to trained net files
-NET_SAVE_PATH = DATA_PATH + '/weights/weights'
+NET_SAVE_PATH = DATA_PATH + '/weights'
 
 # Should we use an existing initial buffer with experiences
 NEW_INITIAL_BUFFER = False
@@ -54,7 +56,7 @@ NEW_INITIAL_BUFFER = False
 VISUALIZE_BUFFER = False
 
 # How often are we saving the net
-SAVE_STEP = 100000
+SAVE_STEP = 10000
 
 # Max training step with noise
 MAX_NOISE_STEP = 3000000
@@ -108,8 +110,9 @@ class DDPG:
             self.summary_writer = tf.summary.FileWriter(TFLOG_PATH)
 
             # Initialize actor and critic networks
+            self.training_step_variable = tf.Variable(0, name='global_step', trainable=False)
             self.actor_network = ActorNetwork(self.height, self.action_dim, self.depth, self.session,
-                                              self.summary_writer)
+                                              self.summary_writer, self.training_step_variable)
             self.critic_network = CriticNetwork(self.height, self.action_dim, self.depth, self.session,
                                                 self.summary_writer)
 
@@ -128,7 +131,13 @@ class DDPG:
             if PRE_TRAINED_NETS:
                 self.saver.restore(self.session, NET_LOAD_PATH)
             else:
-                self.session.run(tf.global_variables_initializer())
+                checkpoint = tf.train.latest_checkpoint(NET_SAVE_PATH)
+                if checkpoint:
+                    print("Restoring from checkpoint: %s" % checkpoint)
+                    self.saver.restore(self.session, checkpoint)
+                else:
+                    print("Couldn't find checkpoint to restore from. Starting over.")
+                    self.session.run(tf.global_variables_initializer())
 
             tf.train.start_queue_runners(sess=self.session)
             time.sleep(1)
@@ -138,7 +147,8 @@ class DDPG:
             self.noise_flag = True
 
             # Initialize time step
-            self.training_step = 0
+            self.training_step = self.session.run(self.training_step_variable)
+            print("training_step: {}".format(self.training_step))
 
             # Flag: don't learn the first experience
             self.first_experience = True
@@ -147,7 +157,6 @@ class DDPG:
             self.summary_writer.add_graph(self.graph)
 
     def train(self):
-
         # Check if the buffer is big enough to start training
         if self.data_manager.enough_data():
 
@@ -194,12 +203,15 @@ class DDPG:
             # Now we can train the actor
             self.actor_network.train(q_gradient_batch, state_batch)
 
+            # Update time step
+            #self.training_step += 1
+            self.training_step = self.session.run(self.training_step_variable)
+
             # Save model if necessary
             if self.training_step > 0 and self.training_step % SAVE_STEP == 0:
-                self.saver.save(self.session, NET_SAVE_PATH, global_step=self.training_step)
-
-            # Update time step
-            self.training_step += 1
+                st = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                print("[{}][{}] SAVE ###################################".format(st, self.training_step))
+                self.saver.save(self.session, NET_SAVE_PATH + "/weights", global_step=self.training_step_variable)
 
         self.data_manager.check_for_enqueue()
 

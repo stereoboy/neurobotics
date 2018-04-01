@@ -35,7 +35,7 @@ PLOT_STEP = 10
 
 class ActorNetwork:
 
-    def __init__(self, image_size, action_size, image_no, session, summary_writer):
+    def __init__(self, image_size, action_size, image_no, session, summary_writer, training_step_variable):
 
         self.graph = session.graph
 
@@ -78,7 +78,7 @@ class ActorNetwork:
 
             # Define the optimizer
             self.optimizer = tf.train.AdamOptimizer(LEARNING_RATE).apply_gradients(zip(self.parameters_gradients,
-                                                                                       self.actor_variables))
+                                                                                       self.actor_variables), global_step=training_step_variable)
 
             # Variables for plotting
             self.actions_mean_plot = [0, 0]
