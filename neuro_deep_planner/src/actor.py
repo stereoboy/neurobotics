@@ -1,6 +1,8 @@
 import tensorflow as tf
 import numpy as np
 from critic import create_variable
+from critic import create_variable_normal
+from critic import create_variable_zero
 from critic import create_variable_final
 
 # Params of fully connected layers
@@ -92,39 +94,45 @@ class ActorNetwork:
 
             weights_conv1 = create_variable([RECEPTIVE_FIELD1, RECEPTIVE_FIELD1, self.image_no, FILTER1],
                                             RECEPTIVE_FIELD1 * RECEPTIVE_FIELD1 * self.image_no, "weights_conv1")
-            biases_conv1 = create_variable([FILTER1], RECEPTIVE_FIELD1 * RECEPTIVE_FIELD1 * self.image_no,
+            biases_conv1 = create_variable_zero([FILTER1], RECEPTIVE_FIELD1 * RECEPTIVE_FIELD1 * self.image_no,
                                            "biases_conv1")
 
             weights_conv2 = create_variable([RECEPTIVE_FIELD2, RECEPTIVE_FIELD2, FILTER1, FILTER2],
                                             RECEPTIVE_FIELD2 * RECEPTIVE_FIELD2 * FILTER1, "weights_conv2")
-            biases_conv2 = create_variable([FILTER2], RECEPTIVE_FIELD2 * RECEPTIVE_FIELD2 * FILTER1, "biases_conv2")
+            biases_conv2 = create_variable_zero([FILTER2], RECEPTIVE_FIELD2 * RECEPTIVE_FIELD2 * FILTER1, "biases_conv2")
 
             weights_conv3 = create_variable([RECEPTIVE_FIELD3, RECEPTIVE_FIELD3, FILTER2, FILTER3],
                                             RECEPTIVE_FIELD3 * RECEPTIVE_FIELD3 * FILTER2, "weights_conv3")
-            biases_conv3 = create_variable([FILTER3], RECEPTIVE_FIELD3 * RECEPTIVE_FIELD3 * FILTER2, "biases_conv3")
+            biases_conv3 = create_variable_zero([FILTER3], RECEPTIVE_FIELD3 * RECEPTIVE_FIELD3 * FILTER2, "biases_conv3")
 
             # weights_conv4 = create_variable([RECEPTIVE_FIELD4, RECEPTIVE_FIELD4, FILTER3, FILTER4],
             #                                 RECEPTIVE_FIELD4 * RECEPTIVE_FIELD4 * FILTER3, "weights_conv4")
             # biases_conv4 = create_variable([FILTER4], RECEPTIVE_FIELD4 * RECEPTIVE_FIELD4 * FILTER3, "biases_conv4")
 
             weights_fully1 = create_variable([self.fully_size, FULLY_LAYER1_SIZE], self.fully_size)
-            biases_fully1 = create_variable([FULLY_LAYER1_SIZE], self.fully_size)
+            biases_fully1 = create_variable_zero([FULLY_LAYER1_SIZE], self.fully_size)
 
             weights_fully2 = create_variable([FULLY_LAYER1_SIZE, FULLY_LAYER2_SIZE], FULLY_LAYER1_SIZE)
-            biases_fully2 = create_variable([FULLY_LAYER2_SIZE], FULLY_LAYER1_SIZE)
+            biases_fully2 = create_variable_zero([FULLY_LAYER2_SIZE], FULLY_LAYER1_SIZE)
 
             weights_final = create_variable_final([FULLY_LAYER2_SIZE, self.action_size])
             biases_final = create_variable_final([self.action_size])
 
         # 4 Convolutional layers
-        conv1 = tf.nn.relu(tf.nn.conv2d(self.map_input, weights_conv1, strides=[1, STRIDE1, STRIDE1, 1],
-                                        padding='VALID') + biases_conv1)
+        conv1 = tf.nn.conv2d(self.map_input, weights_conv1, strides=[1, STRIDE1, STRIDE1, 1], padding='VALID') + biases_conv1
+        mean, var = tf.nn.moments(conv1, axes=[0])
+        #conv1 = tf.nn.batch_normalization(conv1, mean, var, 0.0, 1.0, 1e-8)
+        conv1 = tf.nn.relu(conv1)
 
-        conv2 = tf.nn.relu(tf.nn.conv2d(conv1, weights_conv2, strides=[1, STRIDE2, STRIDE2, 1], padding='VALID') +
-                           biases_conv2)
+        conv2 = tf.nn.conv2d(conv1, weights_conv2, strides=[1, STRIDE2, STRIDE2, 1], padding='VALID') + biases_conv2
+        mean, var = tf.nn.moments(conv2, axes=[0])
+        #conv2 = tf.nn.batch_normalization(conv2, mean, var, 0.0, 1.0, 1e-8)
+        conv2 = tf.nn.relu(conv2)
 
-        conv3 = tf.nn.relu(tf.nn.conv2d(conv2, weights_conv3, strides=[1, STRIDE3, STRIDE3, 1], padding='VALID') +
-                           biases_conv3)
+        conv3 = tf.nn.conv2d(conv2, weights_conv3, strides=[1, STRIDE3, STRIDE3, 1], padding='VALID') + biases_conv3
+        mean, var = tf.nn.moments(conv3, axes=[0])
+        #conv3 = tf.nn.batch_normalization(conv3, mean, var, 0.0, 1.0, 1e-8)
+        conv3 = tf.nn.relu(conv3)
 
         # conv4 = tf.nn.relu(tf.nn.conv2d(conv3, weights_conv4, strides=[1, STRIDE4, STRIDE4, 1], padding='VALID') +
         #                    biases_conv4)
@@ -163,12 +171,20 @@ class ActorNetwork:
         biases_final = self.ema_obj.average(self.actor_variables[11])
 
         # 4 Convolutional layers
-        conv1 = tf.nn.relu(tf.nn.conv2d(self.map_input_target, weights_conv1, strides=[1, STRIDE1, STRIDE1, 1],
-                                        padding='VALID') + biases_conv1)
-        conv2 = tf.nn.relu(tf.nn.conv2d(conv1, weights_conv2, strides=[1, STRIDE2, STRIDE2, 1], padding='VALID') +
-                           biases_conv2)
-        conv3 = tf.nn.relu(tf.nn.conv2d(conv2, weights_conv3, strides=[1, STRIDE3, STRIDE3, 1], padding='VALID') +
-                           biases_conv3)
+        conv1 = tf.nn.conv2d(self.map_input_target, weights_conv1, strides=[1, STRIDE1, STRIDE1, 1], padding='VALID') + biases_conv1
+        mean, var = tf.nn.moments(conv1, axes=[0])
+        #conv1 = tf.nn.batch_normalization(conv1, mean, var, 0.0, 1.0, 1e-8)
+        conv1 = tf.nn.relu(conv1)
+
+        conv2 = tf.nn.conv2d(conv1, weights_conv2, strides=[1, STRIDE2, STRIDE2, 1], padding='VALID') + biases_conv2
+        mean, var = tf.nn.moments(conv2, axes=[0])
+        #conv2 = tf.nn.batch_normalization(conv2, mean, var, 0.0, 1.0, 1e-8)
+        conv2 = tf.nn.relu(conv2)
+
+        conv3 = tf.nn.conv2d(conv2, weights_conv3, strides=[1, STRIDE3, STRIDE3, 1], padding='VALID') + biases_conv3
+        mean, var = tf.nn.moments(conv3, axes=[0])
+        #conv3 = tf.nn.batch_normalization(conv3, mean, var, 0.0, 1.0, 1e-8)
+        conv3 = tf.nn.relu(conv3)
         # conv4 = tf.nn.relu(tf.nn.conv2d(conv3, weights_conv4, strides=[1, STRIDE4, STRIDE4, 1], padding='VALID') +
         #                   biases_conv4)
 
