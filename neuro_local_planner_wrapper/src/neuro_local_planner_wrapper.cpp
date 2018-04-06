@@ -6,6 +6,8 @@ PLUGINLIB_EXPORT_CLASS(neuro_local_planner_wrapper::NeuroLocalPlannerWrapper, na
 
 double goalTolerance = 0.2;
 
+int threshold_crash = 170;
+double subgoal_reward = 0.01;
 
 namespace neuro_local_planner_wrapper
 {
@@ -228,7 +230,7 @@ namespace neuro_local_planner_wrapper
 
         // This causes a crash not just a critical positions but a little bit before the wall
         // TODO: could be solved nicer by using a different inscribed radius, then: >= 253
-        if(costmap_->getCost((unsigned int)robot_x, (unsigned int)robot_y) >= 170)
+        if(costmap_->getCost((unsigned int)robot_x, (unsigned int)robot_y) >= threshold_crash)
         {
             crash_counter_++;
             ROS_INFO("We crashed: %d", crash_counter_);
@@ -292,6 +294,91 @@ namespace neuro_local_planner_wrapper
         else
         {
             return false;
+        }
+    }
+
+    void NeuroLocalPlannerWrapper::processSubGoal(double& reward)
+    {
+        if (global_plan_.size() < 2)
+        {
+            return;
+        }
+
+        // Get current position of robot in odom frame
+        costmap_ros_->getRobotPose(current_pose_);
+
+        // Get goal position
+        geometry_msgs::PoseStamped goal_position = global_plan_.back();
+
+        // Transform current position of robot to map frame
+        tf::StampedTransform stamped_transform;
+        try
+        {
+            // ros::Time(0) gives us the latest available transform
+            tf_->lookupTransform(goal_position.header.frame_id, current_pose_.frame_id_, ros::Time(0),
+                                 stamped_transform);
+        }
+        catch (tf::TransformException ex)
+        {
+            ROS_ERROR("%s",ex.what());
+        }
+
+        // Translation TODO: WHYYY? + -> -
+        double x_current_pose_map_frame = current_pose_.getOrigin().getX() - stamped_transform.getOrigin().getX();
+        double y_current_pose_map_frame = current_pose_.getOrigin().getY() - stamped_transform.getOrigin().getY();
+
+        // Rotation
+        double roll, pitch, yaw;
+        stamped_transform.getBasis().getRPY(roll, pitch, yaw);
+        double x_temp = x_current_pose_map_frame;
+        double y_temp = y_current_pose_map_frame;
+        x_current_pose_map_frame = cos(yaw)*x_temp - sin(yaw)*y_temp;
+        y_current_pose_map_frame = sin(yaw)*x_temp + cos(yaw)*y_temp;
+
+        // Transform the global plan into costmap coordinates
+        // pose given in fixed frame of global plan which is by default "map"
+        geometry_msgs::PoseStamped pose_fixed_frame;
+
+        // pose given in global frame of the local cost map
+        geometry_msgs::PoseStamped pose_robot_base_frame;
+
+        std::vector<geometry_msgs::Point> global_plan_map_coordinates;
+        geometry_msgs::Point a_global_plan_map_coordinate;
+
+        std::vector<geometry_msgs::PoseStamped> global_plan_temp = global_plan_;
+
+        int touched_subgoal_count = 0;
+        int touched_max_index = - 1;
+        for (int i = global_plan_temp.size() - 2; i >= 0; i--) // skip final goal point
+        {
+            geometry_msgs::PoseStamped current = global_plan_temp[i];
+            // Get distance from robot to path point
+            double dist = sqrt(pow((x_current_pose_map_frame - current.pose.position.x), 2.0)
+                               + pow((y_current_pose_map_frame - current.pose.position.y), 2.0));
+
+            // Check if the robot has reached the goal
+            if(dist < goalTolerance* 0.6)
+            {
+                ROS_INFO("dist: %f", dist);
+                ROS_INFO("We got the sub reward at %d", i);
+                reward += subgoal_reward;
+                touched_subgoal_count++;
+                if (touched_max_index == -1)
+                    touched_max_index = i;
+            }
+        }
+
+        // clear touched path points => construct new plan from untouched path points only
+        if (touched_max_index > -1)
+        {
+            global_plan_.clear();
+            for (int i = touched_max_index + 1; i < global_plan_temp.size(); i++)
+            {
+                global_plan_.push_back(global_plan_temp[i]);
+            }
+            ROS_INFO("global_plan_.size(): %d",(int)global_plan_.size());
+            ROS_INFO("We got the sub reward at %f", reward);
+            ROS_INFO("clear touched path points");
         }
     }
 
@@ -389,6 +476,8 @@ namespace neuro_local_planner_wrapper
 
                 // to_delete: ------
                 customized_costmap_.header.stamp = laser_scan.header.stamp;
+
+                processSubGoal(reward);
 
                 // add global plan as white pixel with some gradient to indicate its direction
                 addGlobalPlan();
@@ -618,5 +707,4 @@ namespace neuro_local_planner_wrapper
         }
 
     }
-
 };

@@ -75,6 +75,8 @@ namespace neuro_local_planner_wrapper
 
             void storeResult(const neuro_local_planner_wrapper::Transition& transition);
 
+            void processSubGoal(double& reward);
+
             // Listener to get our pose on the map
             tf::TransformListener* tf_;
 
