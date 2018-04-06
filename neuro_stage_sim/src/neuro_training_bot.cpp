@@ -23,11 +23,17 @@ int sampleArea = 1;
 unsigned int pixel_position;
 bool costmap_there = false;
 
-double x_max = 1.20;
-double x_min = -1.40;
-double y_max = 3.40;
-double y_min = -1.50;
+double margin = 0.5;
+double x_max = 19.5;
+double x_min = 0.5;
+double y_max = 19.5;
+double y_min = 0.5;
 double o = 0.0;
+double resolution = 0.05; // Resolution of the map, meters/pixel. Check *.yaml
+int threshold_pose_valid = 0;
+int map_size = 400;
+
+double stddev = 3.0;
 
 double new_pose_x = 0.0;
 double new_pose_y = 0.0;
@@ -57,7 +63,7 @@ void publishNewGoal()
     double y;
 
     // Initialize the random value
-    boost::normal_distribution<> nd(0.0, 3.0);
+    boost::normal_distribution<> nd(0.0, stddev);
     boost::variate_generator<boost::mt19937&, boost::normal_distribution<> > var_nor(rng, nd);
 
     // Check if the point is unoccupied
@@ -69,17 +75,18 @@ void publishNewGoal()
         y = new_pose_y + var_nor();
 
         // First check for the max x and y values
-        if (x > x_max + 2.0 || x < x_min + 2.0 || y > y_max + 2.0 || y < y_min + 2.0)
+        if (x > x_max || x < x_min || y > y_max || y < y_min)
         {
             collision = true;
         }
         else
         {
             // Now check for the costmap values
-            pixel_position = (unsigned int)(x / 0.05) + (unsigned int)(y / 0.05) * 200;
-            if (costmap_there && current_costmap.data.at(pixel_position) > 10)
+            pixel_position = (unsigned int)(x / resolution) + (unsigned int)(y / resolution) * map_size;
+            if (costmap_there && current_costmap.data.at(pixel_position) > threshold_pose_valid)
             {
                 collision = true;
+                ROS_ERROR("NewGoal() failed due to collision with costmap!");
             }
             else
             {
@@ -89,6 +96,7 @@ void publishNewGoal()
                     if (dist(x, y, robot_poses.at(i).pose.pose.position.x, robot_poses.at(i).pose.pose.position.y) < 0.8)
                     {
                         collision = true;
+                        ROS_ERROR("NewGoal() failed due to moving obastcles!");
                     }
                 }
             }
@@ -115,14 +123,17 @@ void publishNewPose()
     while (collision)
     {
         collision = false;
-        x = getRandomDouble(x_min, x_max, 2.00);
-        y = getRandomDouble(y_min, y_max, 2.00);
+        x = getRandomDouble(x_min, x_max, 0.00);
+        y = getRandomDouble(y_min, y_max, 0.00);
+
+        ROS_ERROR("NewGoal() (%f, %f)", x, y);
 
         // First check for the costmap values
-        pixel_position = (unsigned int)(x / 0.05) + (unsigned int)(y / 0.05) * 200;
-        if (costmap_there && current_costmap.data.at(pixel_position) > 10)
+        pixel_position = (unsigned int)(x / resolution) + (unsigned int)(y / resolution) * map_size;
+        if (costmap_there && current_costmap.data.at(pixel_position) > threshold_pose_valid)
         {
             collision = true;
+            ROS_ERROR("NewPose() failed due to collision with costmap!");
         }
         else
         {
@@ -132,6 +143,7 @@ void publishNewPose()
                 if (dist(x, y, robot_poses.at(i).pose.pose.position.x, robot_poses.at(i).pose.pose.position.y) < 0.8)
                 {
                     collision = true;
+                    ROS_ERROR("NewPose() failed due to moving obastcles!");
                 }
             }
         }
@@ -210,6 +222,13 @@ void costmapCallback(nav_msgs::OccupancyGrid msg)
 {
     costmap_there = true;
     current_costmap = msg;
+    resolution = msg.info.resolution;
+    map_size = msg.info.width;
+    x_max = msg.info.width*resolution - margin;
+    x_min = margin;
+    y_max = msg.info.height*resolution;
+    y_min = margin;
+    ROS_ERROR("costmap: resolution: %f, dim: (%dx%d)", msg.info.resolution, msg.info.height, msg.info.width);
 }
 
 int main(int argc, char **argv)
