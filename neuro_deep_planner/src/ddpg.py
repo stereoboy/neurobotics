@@ -39,6 +39,7 @@ NET_LOAD_PATH = os.path.join(os.path.dirname(__file__), os.pardir)+"/pre_trained
 # Data Directory
 #DATA_PATH = os.path.expanduser('~') + '/rl_nav_data'
 DATA_PATH = './rl_nav_data'
+#DATA_PATH = './rl_nav_data_simple_no_wall'
 
 # path to tensorboard data
 TFLOG_PATH = DATA_PATH + '/tf_logs'
@@ -224,11 +225,22 @@ class DDPG:
         # Get the action
         self.action = self.actor_network.get_action(state)
 
+        print("self.noise_flag", self.noise_flag)
+        print("self.training_step", self.training_step)
+        print("action A", self.action)
+
         # Are we using noise?
         if self.noise_flag:
             # scale noise down to 0 at training step 3000000
-            if self.training_step < MAX_NOISE_STEP:
-                self.action += (MAX_NOISE_STEP - self.training_step) / MAX_NOISE_STEP * self.exploration_noise.noise()
+            freq_mod = int(1 + 8*(1 - np.exp(-2e-5*self.training_step)))
+            noise_factor = np.exp(-5e-5*self.training_step)
+            print("freq_mod: {}, noise_factor: {}".format(freq_mod, noise_factor))
+            if self.training_step < MAX_NOISE_STEP and ((self.training_step)%freq_mod==0):
+            #if self.training_step < MAX_NOISE_STEP:
+                #self.action += (MAX_NOISE_STEP - self.training_step) / MAX_NOISE_STEP * self.exploration_noise.noise()
+                #self.action += np.exp(-1e-5*self.training_step) * self.exploration_noise.noise()
+                self.action += noise_factor * self.exploration_noise.noise()
+                print("action B", self.action)
             # if action value lies outside of action bounds, rescale the action vector
             if self.action[0] < A0_BOUNDS[0] or self.action[0] > A0_BOUNDS[1]:
                 self.action *= np.fabs(A0_BOUNDS[0]/self.action[0])
