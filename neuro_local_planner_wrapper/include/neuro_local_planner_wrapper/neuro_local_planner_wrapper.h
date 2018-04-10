@@ -77,6 +77,12 @@ namespace neuro_local_planner_wrapper
 
             void processSubGoal(double& reward);
 
+            bool isGoalInvisible();
+
+            void processGoalVisibility();
+
+            int goal_invisible_count;
+
             // Listener to get our pose on the map
             tf::TransformListener* tf_;
 

@@ -108,6 +108,9 @@ namespace neuro_local_planner_wrapper
             // To close up too long episodes
             max_time_ = 60;
 
+            // counter after Goal gets invisible
+            goal_invisible_count = 0;
+
             // We are now initialized
             initialized_ = true;
         }
@@ -451,8 +454,11 @@ namespace neuro_local_planner_wrapper
 
                 // increment seq for next costmap
                 transition_msg_.header.seq = transition_msg_.header.seq + 1;
+
+                // reset counter
+                goal_invisible_count = 0;
             }
-            else if (ros::Time::now().toSec() - start_time_ > max_time_)
+            else if (ros::Time::now().toSec() - start_time_ > max_time_ || isGoalInvisible())
             {
                 // New episode so restart the time count
                 start_time_ = ros::Time::now().toSec();
@@ -467,6 +473,24 @@ namespace neuro_local_planner_wrapper
                 std_msgs::Bool new_round;
                 new_round.data = 1;
                 state_pub_.publish(new_round);
+
+                // Create transition message with empty state
+                transition_msg_.header.stamp = laser_scan.header.stamp;
+                transition_msg_.header.frame_id = customized_costmap_.header.frame_id;
+                transition_msg_.is_episode_finished = 1;
+                transition_msg_.reward = reward;
+
+                // clear buffer to get empty state representation
+                transition_msg_.state_representation.clear();
+
+                // Publish it
+                transition_msg_pub_.publish(transition_msg_);
+
+                // increment seq for next costmap
+                transition_msg_.header.seq = transition_msg_.header.seq + 1;
+
+                // reset counter
+                goal_invisible_count = 0;
             }
             else
             {
@@ -481,6 +505,9 @@ namespace neuro_local_planner_wrapper
 
                 // add global plan as white pixel with some gradient to indicate its direction
                 addGlobalPlan();
+
+                // inspect goal visibility
+                processGoalVisibility();
 
                 // add laser scan points as invalid/black pixel
                 addLaserScanPoints(laser_scan);
@@ -706,5 +733,36 @@ namespace neuro_local_planner_wrapper
 
         }
 
+    }
+
+    bool NeuroLocalPlannerWrapper::isGoalInvisible()
+    {
+        if (goal_invisible_count > 8)
+        {
+            return true;
+        }
+        return false;
+    }
+
+    void NeuroLocalPlannerWrapper::processGoalVisibility()
+    {
+        bool found = false;
+        for (int i = 0; i < customized_costmap_.data.size(); i++)
+        {
+            if (customized_costmap_.data[i] == 0)
+            {
+                found = true;
+                break;
+            }
+        }
+
+        // if current local map
+        if (!found)
+        {
+            goal_invisible_count++;    // increase count
+            ROS_WARN("Goal is invisible... count=%d", goal_invisible_count);
+        }
+        else
+            goal_invisible_count = 0;  // reset
     }
 };
