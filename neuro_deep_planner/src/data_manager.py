@@ -3,7 +3,7 @@ import numpy as np
 
 
 # Parameters:
-NUM_EXPERIENCES = 100	    # How many experiences stored per file
+NUM_EXPERIENCES = 200	    # How many experiences stored per file
 MIN_FILE_NUM = 10           # How many files at minimum do we need for training
 PRE_STORED_DATA_FILES = 0   # How many files are already stored in our Data folder
 
