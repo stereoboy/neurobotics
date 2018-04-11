@@ -21,7 +21,7 @@ resolution 0.01
 
 # Simulation timestep in milliseconds and realtime factor
 interval_sim 100
-speedup 2.000
+speedup 8.000
 
 window
 (
@@ -48,15 +48,13 @@ turtlebot
 
 turtlebot
 (
-
-  pose [ 0.000 0.000 0.000 152.407 ]
+  pose [ 2.182 5.182 0.000 152.407 ]
   name "turtlebot1"
 )
 
 turtlebot
 (
-
-  pose [ 0.000 0.000 0.000 131.390 ]
+  pose [ 2.425 2.172 0.000 131.390 ]
   name "turtlebot2"
 )
 
