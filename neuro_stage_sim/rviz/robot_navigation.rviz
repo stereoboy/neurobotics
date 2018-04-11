@@ -20,7 +20,7 @@ Panels:
       - /2D Pose Estimate1
       - /2D Nav Goal1
     Name: Tool Properties
-    Splitter Ratio: 0.588679
+    Splitter Ratio: 0.588679016
   - Class: rviz/Views
     Expanded:
       - /Current View1
@@ -40,7 +40,7 @@ Visualization Manager:
       Color: 160; 160; 164
       Enabled: false
       Line Style:
-        Line Width: 0.03
+        Line Width: 0.0299999993
         Value: Lines
       Name: Grid
       Normal Cell Count: 0
@@ -118,11 +118,6 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        mount_asus_xtion_pro_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
         plate_bottom_link:
           Alpha: 1
           Show Axes: false
@@ -271,7 +266,7 @@ Visualization Manager:
       Queue Size: 10
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.02
+      Size (m): 0.0199999996
       Style: Squares
       Topic: /scan
       Unreliable: false
@@ -301,7 +296,7 @@ Visualization Manager:
       Queue Size: 10
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.05
+      Size (m): 0.0500000007
       Style: Flat Squares
       Topic: /ir_scan
       Unreliable: false
@@ -331,7 +326,7 @@ Visualization Manager:
       Queue Size: 10
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.02
+      Size (m): 0.0199999996
       Style: Flat Squares
       Topic: /virtual_sensor_scan
       Unreliable: false
@@ -361,14 +356,14 @@ Visualization Manager:
       Queue Size: 10
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.04
+      Size (m): 0.0399999991
       Style: Flat Squares
       Topic: /mobile_base/sensors/bumper_pointcloud
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
-    - Alpha: 0.3
+    - Alpha: 0.300000012
       Class: rviz/Map
       Color Scheme: map
       Draw Behind: false
@@ -376,10 +371,11 @@ Visualization Manager:
       Name: Map
       Topic: /map
       Unreliable: false
+      Use Timestamp: false
       Value: true
     - Class: rviz/Group
       Displays:
-        - Alpha: 0.7
+        - Alpha: 0.699999988
           Class: rviz/Map
           Color Scheme: map
           Draw Behind: false
@@ -387,19 +383,28 @@ Visualization Manager:
           Name: Costmap
           Topic: /move_base/local_costmap/costmap
           Unreliable: false
+          Use Timestamp: false
           Value: false
         - Alpha: 1
           Buffer Length: 1
           Class: rviz/Path
           Color: 0; 12; 255
           Enabled: false
+          Head Diameter: 0.300000012
+          Head Length: 0.200000003
+          Length: 0.300000012
           Line Style: Lines
-          Line Width: 0.03
+          Line Width: 0.0299999993
           Name: Planner
           Offset:
             X: 0
             Y: 0
             Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.0299999993
+          Shaft Diameter: 0.100000001
+          Shaft Length: 0.100000001
           Topic: /move_base/DWAPlannerROS/local_plan
           Unreliable: false
           Value: false
@@ -418,7 +423,7 @@ Visualization Manager:
           Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 465.1
+          Max Intensity: 465.100006
           Min Color: 0; 0; 0
           Min Intensity: 0
           Name: Cost Cloud
@@ -426,7 +431,7 @@ Visualization Manager:
           Queue Size: 10
           Selectable: true
           Size (Pixels): 3
-          Size (m): 0.04
+          Size (m): 0.0399999991
           Style: Flat Squares
           Topic: /move_base/DWAPlannerROS/cost_cloud
           Unreliable: false
@@ -448,15 +453,15 @@ Visualization Manager:
           Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
-          Max Intensity: 5.4
+          Max Intensity: 5.4000001
           Min Color: 0; 0; 0
-          Min Intensity: 0.6
+          Min Intensity: 0.600000024
           Name: Trajectory Cloud
           Position Transformer: XYZ
           Queue Size: 10
           Selectable: true
           Size (Pixels): 3
-          Size (m): 0.04
+          Size (m): 0.0399999991
           Style: Flat Squares
           Topic: /move_base/DWAPlannerROS/trajectory_cloud
           Unreliable: false
@@ -467,7 +472,7 @@ Visualization Manager:
       Name: Local Planning
     - Class: rviz/Group
       Displays:
-        - Alpha: 0.4
+        - Alpha: 0.400000006
           Class: rviz/Map
           Color Scheme: map
           Draw Behind: true
@@ -475,19 +480,28 @@ Visualization Manager:
           Name: Costmap
           Topic: /move_base/global_costmap/costmap
           Unreliable: false
+          Use Timestamp: false
           Value: false
         - Alpha: 1
           Buffer Length: 1
           Class: rviz/Path
           Color: 255; 0; 0
           Enabled: false
+          Head Diameter: 0.300000012
+          Head Length: 0.200000003
+          Length: 0.300000012
           Line Style: Lines
-          Line Width: 0.03
+          Line Width: 0.0299999993
           Name: Planner
           Offset:
             X: 0
             Y: 0
             Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.0299999993
+          Shaft Diameter: 0.100000001
+          Shaft Length: 0.100000001
           Topic: /move_base/DWAPlannerROS/global_plan
           Unreliable: false
           Value: false
@@ -495,24 +509,32 @@ Visualization Manager:
       Name: Global Planning
     - Alpha: 1
       Axes Length: 1
-      Axes Radius: 0.1
+      Axes Radius: 0.100000001
       Class: rviz/Pose
       Color: 255; 25; 0
       Enabled: false
-      Head Length: 0.2
-      Head Radius: 0.1
+      Head Length: 0.200000003
+      Head Radius: 0.100000001
       Name: Pose (move_base)
       Shaft Length: 1
-      Shaft Radius: 0.05
+      Shaft Radius: 0.0500000007
       Shape: Arrow
       Topic: /move_base/current_goal
       Unreliable: false
       Value: false
-    - Arrow Length: 0.2
+    - Alpha: 1
+      Arrow Length: 0.200000003
+      Axes Length: 0.300000012
+      Axes Radius: 0.00999999978
       Class: rviz/PoseArray
       Color: 0; 192; 0
       Enabled: false
+      Head Length: 0.0700000003
+      Head Radius: 0.0299999993
       Name: ParticleCloud
+      Shaft Length: 0.230000004
+      Shaft Radius: 0.00999999978
+      Shape: Arrow (Flat)
       Topic: /particlecloud
       Unreliable: false
       Value: false
@@ -521,13 +543,21 @@ Visualization Manager:
       Class: rviz/Path
       Color: 25; 255; 0
       Enabled: true
+      Head Diameter: 0.300000012
+      Head Length: 0.200000003
+      Length: 0.300000012
       Line Style: Billboards
-      Line Width: 0.03
+      Line Width: 0.0299999993
       Name: Path (global)
       Offset:
         X: 0
         Y: 0
         Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Radius: 0.0299999993
+      Shaft Diameter: 0.100000001
+      Shaft Length: 0.100000001
       Topic: /move_base/NavfnROS/plan
       Unreliable: false
       Value: true
@@ -539,6 +569,7 @@ Visualization Manager:
       Name: Map
       Topic: /move_base/NeuroLocalPlannerWrapper/customized_costmap
       Unreliable: false
+      Use Timestamp: false
       Value: true
     - Class: rviz/MarkerArray
       Enabled: false
@@ -549,21 +580,21 @@ Visualization Manager:
       Queue Size: 100
       Value: false
     - Class: rviz/Marker
-      Enabled: false
+      Enabled: true
       Marker Topic: /dynamic_obstacle_marker_1
       Name: Marker
       Namespaces:
-        {}
+        my_namespace: true
       Queue Size: 100
-      Value: false
+      Value: true
     - Class: rviz/Marker
-      Enabled: false
+      Enabled: true
       Marker Topic: /dynamic_obstacle_marker_2
       Name: Marker
       Namespaces:
-        {}
+        my_namespace: true
       Queue Size: 100
-      Value: false
+      Value: true
     - Class: rviz/Marker
       Enabled: false
       Marker Topic: /velocity_command
@@ -572,9 +603,20 @@ Visualization Manager:
         {}
       Queue Size: 100
       Value: false
+    - Alpha: 0.699999988
+      Class: rviz/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: GlobalCostMap
+      Topic: /move_base/global_costmap/costmap
+      Unreliable: false
+      Use Timestamp: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 255; 255; 255
+    Default Light: true
     Fixed Frame: odom
     Frame Rate: 30
   Name: root
@@ -592,22 +634,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 11.5546
+      Distance: 22.8067322
       Enable Stereo Rendering:
-        Stereo Eye Separation: 0.06
+        Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.459147
-        Y: -0.149175
-        Z: 0.105468
+        X: 0.459147006
+        Y: -0.149175003
+        Z: 0.105467997
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.0500000007
+      Invert Z Axis: false
       Name: Current View
-      Near Clip Distance: 0.01
-      Pitch: 0.905203
+      Near Clip Distance: 0.00999999978
+      Pitch: 0.905202985
       Target Frame: base_link
       Value: Orbit (rviz)
-      Yaw: 5.20006
+      Yaw: 5.20005989
     Saved: ~
 Window Geometry:
   Displays:
@@ -615,7 +660,7 @@ Window Geometry:
   Height: 1026
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd000000040000000000000182000003bcfc0200000005fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000006400fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c0061007900730100000028000003bc000000dd00ffffff000000010000010f000003bcfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a005600690065007700730100000028000003bc000000b000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004a00000003efc0100000002fb0000000800540069006d00650000000000000004a0000002f600fffffffb0000000800540069006d00650100000000000004500000000000000000000003f3000003bc00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd000000040000000000000182000003bcfc0200000005fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000006400fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c0061007900730100000028000003bc000000dd00ffffff000000010000010f000003bcfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a005600690065007700730100000028000003bc000000b000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004a00000003efc0100000002fb0000000800540069006d00650000000000000004a00000030000fffffffb0000000800540069006d00650100000000000004500000000000000000000003f3000003bc00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
@@ -625,5 +670,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1680
-  X: 0
+  X: 65
   Y: 24
