@@ -46,14 +46,17 @@ class ROSHandler:
         # Lets update the new reward
         self.reward = transition_msg.reward
 
+
+
+
         # Check if episode is done or not
         self.is_episode_finished = transition_msg.is_episode_finished
 
         # Lets update the new costmap its possible that we need to switch some axes here...
-        if not self.is_episode_finished:
-            temp_state = np.asarray(transition_msg.state_representation, dtype='int8').reshape(self.depth, self.height,
-                                                                                               self.width).swapaxes(1, 2)
-            self.state = np.rollaxis(temp_state, 0, 3)
+        #if not self.is_episode_finished:
+        temp_state = np.asarray(transition_msg.state_representation, dtype='int8').reshape(self.depth, self.height,
+                                                                                           self.width).swapaxes(1, 2)
+        self.state = np.rollaxis(temp_state, 0, 3)
 
         # We have received a new msg
         self.__new_msg_flag = True

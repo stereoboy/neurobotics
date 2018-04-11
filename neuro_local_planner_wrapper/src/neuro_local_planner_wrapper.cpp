@@ -113,6 +113,7 @@ namespace neuro_local_planner_wrapper
 
             // We are now initialized
             initialized_ = true;
+            clock_counter = 0;
         }
         else
         {
@@ -419,11 +420,15 @@ namespace neuro_local_planner_wrapper
     // Callback function for the subscriber to the laser scan
     void NeuroLocalPlannerWrapper::buildStateRepresentation(sensor_msgs::LaserScan laser_scan)
     {
+        clock_counter++;
+        if (clock_counter%4 != 0)
+            return;
+
         // Check for collision or goal reached
         if (is_running_)
         {
             double reward = 0.0;
-
+#if 0
             if (isCrashed(reward) || isAtGoal(reward))
             {
                 // New episode so restart the time count
@@ -493,7 +498,33 @@ namespace neuro_local_planner_wrapper
                 goal_invisible_count = 0;
             }
             else
+#endif
             {
+                unsigned char is_episode_finished = 0;
+
+                if (   isCrashed(reward)
+                    || isAtGoal(reward)
+                    || ros::Time::now().toSec() - start_time_ > max_time_
+                    || isGoalInvisible())
+                {
+                    // New episode so restart the time count
+                    start_time_ = ros::Time::now().toSec();
+
+                    // This is the last transition published in this episode
+                    is_running_ = false;
+
+                    // Stop moving
+                    setZeroAction();
+
+                    // Publish that a new round can be started with the stage_sim_bot
+                    std_msgs::Bool new_round;
+                    new_round.data = 1;
+                    state_pub_.publish(new_round);
+
+                    is_episode_finished = 1;
+                    goal_invisible_count = 0;
+                }
+
                 // clear costmap/set all pixel gray
                 std::vector<int8_t> data(customized_costmap_.info.width*customized_costmap_.info.height,50);
                 customized_costmap_.data = data;
@@ -501,6 +532,7 @@ namespace neuro_local_planner_wrapper
                 // to_delete: ------
                 customized_costmap_.header.stamp = laser_scan.header.stamp;
 
+                // calculated sub goal
                 processSubGoal(reward);
 
                 // add global plan as white pixel with some gradient to indicate its direction
@@ -524,14 +556,18 @@ namespace neuro_local_planner_wrapper
                                                             customized_costmap_.data.end());
 
                 // publish transition message after four consecutive costmaps are available
-                if (transition_msg_.state_representation.size() == transition_msg_.width*
+                if (transition_msg_.state_representation.size() > transition_msg_.width*
                                                                 transition_msg_.height*
                                                                 transition_msg_.depth)
                 {
+                    // erase first costmap in the queue
+                    transition_msg_.state_representation.erase(transition_msg_.state_representation.begin(),
+                                    transition_msg_.state_representation.begin() + transition_msg_.width*transition_msg_.height);
+
                     // publish
                     transition_msg_.header.stamp = customized_costmap_.header.stamp;
                     transition_msg_.header.frame_id = customized_costmap_.header.frame_id;
-                    transition_msg_.is_episode_finished = 0;
+                    transition_msg_.is_episode_finished = is_episode_finished;
                     transition_msg_.reward = reward;
 
                     transition_msg_pub_.publish(transition_msg_);
@@ -539,9 +575,11 @@ namespace neuro_local_planner_wrapper
                     // increment seq for next costmap
                     transition_msg_.header.seq = transition_msg_.header.seq + 1;
 
-                    // clear buffer
-                    transition_msg_.state_representation.clear();
                 }
+
+                // clear buffer
+                if (is_episode_finished)
+                    transition_msg_.state_representation.clear();
             }
         }
     }

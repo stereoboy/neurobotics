@@ -171,6 +171,8 @@ namespace neuro_local_planner_wrapper
             std::vector<std::pair<int, int> > plot_list_;
 
             int file_counter; // one file for 1000 entries
+
+            long long clock_counter;
     };
 };
 #endif
