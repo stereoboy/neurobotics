@@ -39,40 +39,47 @@ class VisualizerRunnable(object):
     def callback(self, data):
         self.subscriber.unregister()
 
-        if not data.is_episode_finished:
+        #if not data.is_episode_finished:
 
-            #print("-->{}chX{}px{}p".format(data.depth, data.width, data.height))
+        #print("-->{}chX{}px{}p".format(data.depth, data.width, data.height))
 
-            data_1d = np.asarray([(100 - d) for d in data.state_representation])
+        data_1d = np.asarray([(100 - d) for d in data.state_representation])
 
-            data_3d = data_1d.reshape(data.depth, data.height, data.width).swapaxes(1, 2)
+        data_3d = data_1d.reshape(data.depth, data.height, data.width).swapaxes(1, 2)
 
-            data_3d = np.rollaxis(data_3d, 0, 3)
+        data_3d = np.rollaxis(data_3d, 0, 3)
 
-            # Make this a state batch with just one state in the batch
-            data_3d = np.expand_dims(data_3d, axis=0)
+        # Make this a state batch with just one state in the batch
+        data_3d = np.expand_dims(data_3d, axis=0)
 
+        if data.reward >= 10.0:
+            h_divider = np.full((data_3d.shape[1], 10), 100)
+            v_divider = np.full((10, data_3d.shape[1]*4+30), 100)
+        elif data.reward < 0.0:
+            h_divider = np.full((data_3d.shape[1], 10), 0)
+            v_divider = np.full((10, data_3d.shape[1]*4+30), 0)
+        else:
             h_divider = np.full((data_3d.shape[1], 10), 75)
             v_divider = np.full((10, data_3d.shape[1]*4+30), 75)
 
-            output = v_divider
+        output = v_divider
 
-            for data in data_3d:
+        for data in data_3d:
 
-                h_stack = np.hstack((data[:, :, 0], h_divider,
-                                     data[:, :, 1], h_divider,
-                                     data[:, :, 2], h_divider,
-                                     data[:, :, 3]))
+            h_stack = np.hstack((data[:, :, 0], h_divider,
+                                 data[:, :, 1], h_divider,
+                                 data[:, :, 2], h_divider,
+                                 data[:, :, 3]))
 
-                v_stack = np.vstack((h_stack, v_divider))
+            v_stack = np.vstack((h_stack, v_divider))
 
-                output = np.vstack((output, v_stack))
+            output = np.vstack((output, v_stack))
 
-            self.move_img = np.sum(data.astype(np.float32), axis=2)
-            self.move_img = cv2.convertScaleAbs(self.move_img, alpha = 255.0/400.0, beta=0.0).astype(np.uint8)
+        self.move_img = np.sum(data.astype(np.float32), axis=2)
+        self.move_img = cv2.convertScaleAbs(self.move_img, alpha = 255.0/400.0, beta=0.0).astype(np.uint8)
 
-            self.output = cv2.convertScaleAbs(output, alpha=2.55, beta=0.0)
-            self.vis_im.set_data(output)
+        self.output = cv2.convertScaleAbs(output, alpha=2.55, beta=0.0)
+        self.vis_im.set_data(output)
         self.subscriber = rospy.Subscriber("/move_base/NeuroLocalPlannerWrapper/transition", Transition, self.callback, queue_size=1)
 
     def costmap_callback(self, data):
@@ -104,19 +111,19 @@ class VisualizerRunnable(object):
 
         cv2.namedWindow('transition')
         cv2.moveWindow('transition', 100, 100)
-        cv2.namedWindow('costmap')
-        cv2.moveWindow('costmap', 100, 100)
-        cv2.namedWindow('costmapx16')
-        cv2.moveWindow('costmapx16', 100, 100)
+        #cv2.namedWindow('costmap')
+        #cv2.moveWindow('costmap', 100, 100)
+        #cv2.namedWindow('costmapx16')
+        #cv2.moveWindow('costmapx16', 100, 100)
         cv2.namedWindow('move_img')
         cv2.moveWindow('move_img', 100, 100)
         while True:
             if self.output is not None:
                 cv2.imshow('transition', cv2.resize(self.output.astype(np.uint8), (self.output.shape[1]*5, self.output.shape[0]*5)))
-            if self.costmap is not None:
-                cv2.imshow('costmap', cv2.resize(self.costmap, (self.costmap.shape[1]*5, self.costmap.shape[0]*5)))
-            if self.costmaps is not None:
-                cv2.imshow('costmapx16', cv2.resize(self.costmaps, (self.costmaps.shape[1]*4, self.costmaps.shape[0]*4)))
+            #if self.costmap is not None:
+            #    cv2.imshow('costmap', cv2.resize(self.costmap, (self.costmap.shape[1]*5, self.costmap.shape[0]*5)))
+            #if self.costmaps is not None:
+            #    cv2.imshow('costmapx16', cv2.resize(self.costmaps, (self.costmaps.shape[1]*4, self.costmaps.shape[0]*4)))
             if self.move_img is not None:
                 cv2.imshow('move_img', cv2.resize(self.move_img, (self.move_img.shape[1]*4, self.move_img.shape[0]*4)))
             ch = cv2.waitKey(1)
