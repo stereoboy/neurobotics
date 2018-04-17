@@ -7,7 +7,7 @@ PLUGINLIB_EXPORT_CLASS(neuro_local_planner_wrapper::NeuroLocalPlannerWrapper, na
 double goalTolerance = 0.2;
 
 int threshold_crash = 170;
-double subgoal_reward = 0.01;
+double subgoal_reward = 0.2;
 
 namespace neuro_local_planner_wrapper
 {
@@ -106,7 +106,7 @@ namespace neuro_local_planner_wrapper
             temp_goal_count_ = 0;
 
             // To close up too long episodes
-            max_time_ = 60;
+            max_time_ = 60*1.5;
 
             // counter after Goal gets invisible
             goal_invisible_count = 0;
@@ -237,8 +237,21 @@ namespace neuro_local_planner_wrapper
         if(costmap_->getCost((unsigned int)robot_x, (unsigned int)robot_y) >= threshold_crash)
         {
             crash_counter_++;
-            ROS_INFO("We crashed: %d", crash_counter_);
+            ROS_ERROR("We crashed: %d", crash_counter_);
             reward = -1.0;
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    bool NeuroLocalPlannerWrapper::isTimeOut(double& reward)
+    {
+        if(ros::Time::now().toSec() - start_time_ > max_time_)
+        {
+            ROS_ERROR("Time Out");
             return true;
         }
         else
@@ -291,8 +304,8 @@ namespace neuro_local_planner_wrapper
         if(dist < goalTolerance)
         {
             goal_counter_++;
-            ROS_INFO("We reached the goal: %d", goal_counter_);
-            reward = 1.0;
+            ROS_ERROR("We reached the goal: %d", goal_counter_);
+            reward = 10.0;
             return true;
         }
         else
@@ -363,8 +376,8 @@ namespace neuro_local_planner_wrapper
             // Check if the robot has reached the goal
             if(dist < goalTolerance* 0.6)
             {
-                ROS_INFO("dist: %f", dist);
-                ROS_INFO("We got the sub reward at %d", i);
+                //ROS_INFO("dist: %f", dist);
+                //ROS_INFO("We got the sub reward at %d", i);
                 reward += subgoal_reward;
                 touched_subgoal_count++;
                 if (touched_max_index == -1)
@@ -380,9 +393,9 @@ namespace neuro_local_planner_wrapper
             {
                 global_plan_.push_back(global_plan_temp[i]);
             }
-            ROS_INFO("global_plan_.size(): %d",(int)global_plan_.size());
-            ROS_INFO("We got the sub reward at %f", reward);
-            ROS_INFO("clear touched path points");
+            //ROS_INFO("global_plan_.size(): %d",(int)global_plan_.size());
+            //ROS_INFO("We got the sub reward at %f", reward);
+            //ROS_INFO("clear touched path points");
         }
     }
 
@@ -500,12 +513,12 @@ namespace neuro_local_planner_wrapper
             else
 #endif
             {
+                bool          buffer_clear = false;
                 unsigned char is_episode_finished = 0;
 
                 if (   isCrashed(reward)
-                    || isAtGoal(reward)
-                    || ros::Time::now().toSec() - start_time_ > max_time_
-                    || isGoalInvisible())
+                    || isTimeOut(reward)
+                    || isGoalInvisible(reward))
                 {
                     // New episode so restart the time count
                     start_time_ = ros::Time::now().toSec();
@@ -522,7 +535,30 @@ namespace neuro_local_planner_wrapper
                     state_pub_.publish(new_round);
 
                     is_episode_finished = 1;
+                    buffer_clear = true;
                     goal_invisible_count = 0;
+                    clock_counter = 0;
+                }
+                else if ( isAtGoal(reward))
+                {
+                    // New episode so restart the time count
+                    start_time_ = ros::Time::now().toSec();
+
+                    // This is the last transition published in this episode
+                    is_running_ = false;
+
+                    // Stop moving
+                    setZeroAction();
+
+                    // Publish that a new round can be started with the stage_sim_bot
+                    std_msgs::Bool new_round;
+                    new_round.data = 1;
+                    state_pub_.publish(new_round);
+
+                    is_episode_finished = 0;
+                    buffer_clear = true;
+                    goal_invisible_count = 0;
+                    clock_counter = 0;
                 }
 
                 // clear costmap/set all pixel gray
@@ -578,7 +614,7 @@ namespace neuro_local_planner_wrapper
                 }
 
                 // clear buffer
-                if (is_episode_finished)
+                if (buffer_clear)
                     transition_msg_.state_representation.clear();
             }
         }
@@ -729,6 +765,7 @@ namespace neuro_local_planner_wrapper
         int goal_tolerance_in_pixel = (int)round(goalTolerance / (costmap_->getSizeInMetersX()
                                                                   / costmap_->getSizeInCellsX()));
 
+#if 0
         geometry_msgs::Point blob_position_map_coordinate;
 
         bool got_valid_blob_position = false;
@@ -770,13 +807,56 @@ namespace neuro_local_planner_wrapper
         {
 
         }
+#else
+        geometry_msgs::PoseStamped goal_position = global_plan_.back();
+        geometry_msgs::PoseStamped goal_pose_robot_base_frame;
+        int goal_x, goal_y;
 
+        try
+        {
+            goal_position.header.stamp = customized_costmap_.header.stamp;
+            tf_->waitForTransform(customized_costmap_.header.frame_id, goal_position.header.frame_id,
+                                  customized_costmap_.header.stamp, ros::Duration(0.2));
+            tf_->transformPose(customized_costmap_.header.frame_id, goal_position, goal_pose_robot_base_frame);
+        }
+        catch (tf::TransformException ex)
+        {
+            ROS_ERROR("%s", ex.what());
+        }
+
+        // transformation to costmap coordinates
+        goal_x = (int)round(((goal_pose_robot_base_frame.pose.position.x - customized_costmap_.info.origin.position.x)
+                        / costmap_->getSizeInMetersX()) * customized_costmap_.info.width - 0.5);
+        goal_y = (int)round(((goal_pose_robot_base_frame.pose.position.y - customized_costmap_.info.origin.position.y)
+                        / costmap_->getSizeInMetersY()) * customized_costmap_.info.height - 0.5);
+
+        int pixel_to_blob_center;
+        for (int x = (int)(goal_x - goal_tolerance_in_pixel); x <=
+                goal_x + goal_tolerance_in_pixel; x++)
+        {
+            for (int y = (int)(goal_y - goal_tolerance_in_pixel); y <=
+                    goal_y + goal_tolerance_in_pixel; y++)
+            {
+                pixel_to_blob_center = (int)round(sqrt(pow((goal_x - x), 2.0)
+                                                       + pow((goal_y  - y), 2.0)));
+
+                if ((x >= 0) && (y >= 0) && (x < customized_costmap_.info.width) && (y < customized_costmap_.info.height))
+                {
+                    if (pixel_to_blob_center <= goal_tolerance_in_pixel)
+                    {
+                        customized_costmap_.data[x + y*customized_costmap_.info.width] = 0;
+                    }
+                }
+            }
+        }
+#endif
     }
 
-    bool NeuroLocalPlannerWrapper::isGoalInvisible()
+    bool NeuroLocalPlannerWrapper::isGoalInvisible(double& reward)
     {
         if (goal_invisible_count > 8)
         {
+            ROS_ERROR("Goal is invisible!");
             return true;
         }
         return false;

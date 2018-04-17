@@ -59,6 +59,8 @@ namespace neuro_local_planner_wrapper
 
             bool isAtGoal(double& reward);
 
+            bool isTimeOut(double& reward);
+
             void initializeCustomizedCostmap();
 
             void initializeTransitionMsg();
@@ -77,7 +79,7 @@ namespace neuro_local_planner_wrapper
 
             void processSubGoal(double& reward);
 
-            bool isGoalInvisible();
+            bool isGoalInvisible(double& reward);
 
             void processGoalVisibility();
 
