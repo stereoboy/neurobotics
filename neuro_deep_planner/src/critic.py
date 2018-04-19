@@ -55,16 +55,8 @@ class CriticNetwork:
             self.action_size = action_size
             self.image_no = image_no
 
-            # Calculate the fully connected layer size
-            height_layer1 = (image_size - RECEPTIVE_FIELD1)/STRIDE1 + 1
-            height_layer2 = (height_layer1 - RECEPTIVE_FIELD2)/STRIDE2 + 1
-            height_layer3 = (height_layer2 - RECEPTIVE_FIELD3)/STRIDE3 + 1
-            # height_layer4 = (height_layer3 - RECEPTIVE_FIELD4)/STRIDE4 + 1
-            # self.fully_size = (height_layer4**2) * FILTER4
-            self.fully_size = (height_layer3**2) * FILTER3
-
             # Create critic network
-            self.map_input = tf.placeholder("float", [None, image_size, image_size, image_no])
+            self.map_input = tf.placeholder("float", [None, image_size, image_size, image_no], name='map_input')
             self.action_input = tf.placeholder("float", [None, action_size], name="action_input")
             self.Q_output = self.create_network()
 
@@ -72,28 +64,32 @@ class CriticNetwork:
             with tf.variable_scope("critic") as scope:
                 self.critic_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
             self.ema_obj = tf.train.ExponentialMovingAverage(decay=TARGET_DECAY)
-            self.compute_ema = self.ema_obj.apply(self.critic_variables)
+            with tf.name_scope('critic/moving_average'):
+                self.compute_ema = self.ema_obj.apply(self.critic_variables)
 
-            # Create target actor network
-#            self.map_input_target = tf.placeholder("float", [None, image_size, image_size, image_no])
-#            self.action_input_target = tf.placeholder("float", [None, action_size])
+            # Create target critic network
             self.Q_output_target = self.create_target_network()
 
             # L2 Regularization for all Variables
-            self.regularization = 0
-            for variable in self.critic_variables:
-                self.regularization += tf.nn.l2_loss(variable)
+#            self.regularization = 0
+#            for variable in self.critic_variables:
+#                self.regularization += tf.nn.l2_loss(variable)
+            with tf.name_scope('critic/regularization'):
+                regularization_loss = tf.losses.get_regularization_loss(scope='critic')
 
             # Define the loss with regularization term
             self.y_input = tf.placeholder("float", [None, 1], name="y_input")
-            self.td_error = tf.reduce_mean(tf.pow(self.Q_output - self.y_input, 2))
-            self.loss = self.td_error + REGULARIZATION_DECAY * self.regularization
+            with tf.name_scope('cal_loss'):
+                self.td_error = tf.reduce_mean(tf.pow(self.Q_output - self.y_input, 2))
+                self.loss = self.td_error #+ regularization_loss
 
             # Define the optimizer
-            self.optimizer = tf.train.AdamOptimizer(LEARNING_RATE).minimize(self.loss)
+            with tf.name_scope('q_param_opt'):
+                self.optimizer = tf.train.AdamOptimizer(LEARNING_RATE).minimize(self.loss)
 
             # Define the action gradients for the actor training step
-            self.action_gradients = tf.gradients(self.Q_output, self.action_input)
+            with tf.name_scope('q_gradients'):
+                self.action_gradients = tf.gradients(self.Q_output, self.action_input)
 
             # Variables for plotting
             self.action_grads_mean_plot = [0, 0]
@@ -160,66 +156,9 @@ class CriticNetwork:
     def create_network(self):
 
         with tf.variable_scope('critic'):
-
-#            weights_conv1 = create_variable([RECEPTIVE_FIELD1, RECEPTIVE_FIELD1, self.image_no, FILTER1],
-#                                            RECEPTIVE_FIELD1 * RECEPTIVE_FIELD1 * self.image_no, "weights_conv1")
-#            biases_conv1 = create_variable_zero([FILTER1], RECEPTIVE_FIELD1 * RECEPTIVE_FIELD1 * self.image_no,
-#                                           "biases_conv1")
-#
-#            weights_conv2 = create_variable([RECEPTIVE_FIELD2, RECEPTIVE_FIELD2, FILTER1, FILTER2],
-#                                            RECEPTIVE_FIELD2 * RECEPTIVE_FIELD2 * FILTER1, "weights_conv2")
-#            biases_conv2 = create_variable_zero([FILTER2], RECEPTIVE_FIELD2 * RECEPTIVE_FIELD2 * FILTER1,
-#                                           "biases_conv2")
-#
-#            weights_conv3 = create_variable([RECEPTIVE_FIELD3, RECEPTIVE_FIELD3, FILTER2, FILTER3],
-#                                            RECEPTIVE_FIELD3 * RECEPTIVE_FIELD3 * FILTER2, "weights_conv3")
-#            biases_conv3 = create_variable_zero([FILTER3], RECEPTIVE_FIELD3 * RECEPTIVE_FIELD3 * FILTER2, "biases_conv3")
-#
-#            # weights_conv4 = create_variable([RECEPTIVE_FIELD4, RECEPTIVE_FIELD4, FILTER3, FILTER4],
-#            #                                RECEPTIVE_FIELD4 * RECEPTIVE_FIELD4 * FILTER3, "weights_conv4")
-#            # biases_conv4 = create_variable([FILTER4], RECEPTIVE_FIELD4 * RECEPTIVE_FIELD4 * FILTER3, "biases_conv4")
-#
-#            weights_actions = create_variable([self.action_size, FULLY_LAYER1_SIZE], self.fully_size)
-#            weights_fully1 = create_variable([self.fully_size, FULLY_LAYER1_SIZE], self.fully_size)
-#            biases_fully1 = create_variable_zero([FULLY_LAYER1_SIZE], self.fully_size)
-#
-#            weights_fully2 = create_variable([FULLY_LAYER1_SIZE, FULLY_LAYER2_SIZE], FULLY_LAYER1_SIZE)
-#            biases_fully2 = create_variable_zero([FULLY_LAYER2_SIZE], FULLY_LAYER1_SIZE)
-#
-#            weights_final = create_variable_final([FULLY_LAYER2_SIZE, 1])
-#            biases_final = create_variable_final([1])
-
             out = self.create_base_network()
             print("out", out)
 
-#        # 4 Convolutional layers
-#        conv1 = tf.nn.conv2d(self.map_input, weights_conv1, strides=[1, STRIDE1, STRIDE1, 1], padding='VALID') + biases_conv1
-#        mean, var = tf.nn.moments(conv1, axes=[0])
-#        #conv1 = tf.nn.batch_normalization(conv1, mean, var, 0.0, 1.0, 1e-8)
-#        conv1 = tf.nn.relu(conv1)
-#
-#        conv2 = tf.nn.conv2d(conv1, weights_conv2, strides=[1, STRIDE2, STRIDE2, 1], padding='VALID') + biases_conv2
-#        mean, var = tf.nn.moments(conv2, axes=[0])
-#        #conv2 = tf.nn.batch_normalization(conv2, mean, var, 0.0, 1.0, 1e-8)
-#        conv2 = tf.nn.relu(conv2)
-#
-#        conv3 = tf.nn.conv2d(conv2, weights_conv3, strides=[1, STRIDE3, STRIDE3, 1], padding='VALID') + biases_conv3
-#        mean, var = tf.nn.moments(conv3, axes=[0])
-#        #conv3 = tf.nn.batch_normalization(conv3, mean, var, 0.0, 1.0, 1e-8)
-#        conv3 = tf.nn.relu(conv3)
-#        # conv4 = tf.nn.relu(tf.nn.conv2d(conv3, weights_conv4, strides=[1, STRIDE4, STRIDE4, 1], padding='VALID') +
-#        #                    biases_conv4)
-#
-#        # Reshape output tensor to a rank 1 tensor
-#        # conv_flat = tf.reshape(conv4, [-1, self.fully_size])
-#        conv_flat = tf.reshape(conv3, [-1, self.fully_size])
-#
-#        # 2 Fully connected layers
-#        fully1 = tf.nn.relu(tf.matmul(conv_flat, weights_fully1) + tf.matmul(self.action_input, weights_actions) +
-#                            biases_fully1)
-#        fully2 = tf.nn.relu(tf.matmul(fully1, weights_fully2) + biases_fully2)
-#
-#        #return tf.matmul(fully2, weights_final) + biases_final
         return out
 
     def create_target_network(self):
@@ -232,59 +171,9 @@ class CriticNetwork:
             return ema_getter
 
         with tf.variable_scope('critic', reuse=True, custom_getter=getter_ema(self.ema_obj)):
-            out = self.create_base_network()
+            with tf.name_scope('target_network'):
+                out = self.create_base_network()
 
-#        weights_conv1 = self.ema_obj.average(self.critic_variables[0])
-#        biases_conv1 = self.ema_obj.average(self.critic_variables[1])
-#        weights_conv2 = self.ema_obj.average(self.critic_variables[2])
-#        biases_conv2 = self.ema_obj.average(self.critic_variables[3])
-#        weights_conv3 = self.ema_obj.average(self.critic_variables[4])
-#        biases_conv3 = self.ema_obj.average(self.critic_variables[5])
-#        # weights_conv4 = self.ema_obj.average(self.critic_variables[6])
-#        # biases_conv4 = self.ema_obj.average(self.critic_variables[7])
-#        # weights_actions = self.ema_obj.average(self.critic_variables[8])
-#        # weights_fully1 = self.ema_obj.average(self.critic_variables[9])
-#        # biases_fully1 = self.ema_obj.average(self.critic_variables[10])
-#        # weights_fully2 = self.ema_obj.average(self.critic_variables[11])
-#        # biases_fully2 = self.ema_obj.average(self.critic_variables[12])
-#        # weights_final = self.ema_obj.average(self.critic_variables[13])
-#        # biases_final = self.ema_obj.average(self.critic_variables[14])
-#        weights_actions = self.ema_obj.average(self.critic_variables[6])
-#        weights_fully1 = self.ema_obj.average(self.critic_variables[7])
-#        biases_fully1 = self.ema_obj.average(self.critic_variables[8])
-#        weights_fully2 = self.ema_obj.average(self.critic_variables[9])
-#        biases_fully2 = self.ema_obj.average(self.critic_variables[10])
-#        weights_final = self.ema_obj.average(self.critic_variables[11])
-#        biases_final = self.ema_obj.average(self.critic_variables[12])
-#
-#        # 4 Convolutional layers
-#        conv1 = tf.nn.conv2d(self.map_input_target, weights_conv1, strides=[1, STRIDE1, STRIDE1, 1], padding='VALID') + biases_conv1
-#        mean, var = tf.nn.moments(conv1, axes=[0])
-#        #conv1 = tf.nn.batch_normalization(conv1, mean, var, 0.0, 1.0, 1e-8)
-#        conv1 = tf.nn.relu(conv1)
-#
-#        conv2 = tf.nn.conv2d(conv1, weights_conv2, strides=[1, STRIDE2, STRIDE2, 1], padding='VALID') + biases_conv2
-#        mean, var = tf.nn.moments(conv2, axes=[0])
-#        #conv2 = tf.nn.batch_normalization(conv2, mean, var, 0.0, 1.0, 1e-8)
-#        conv2 = tf.nn.relu(conv2)
-#
-#        conv3 = tf.nn.conv2d(conv2, weights_conv3, strides=[1, STRIDE3, STRIDE3, 1], padding='VALID') + biases_conv3
-#        mean, var = tf.nn.moments(conv3, axes=[0])
-#        #conv3 = tf.nn.batch_normalization(conv3, mean, var, 0.0, 1.0, 1e-8)
-#        conv3 = tf.nn.relu(conv3)
-#        # conv4 = tf.nn.relu(tf.nn.conv2d(conv3, weights_conv4, strides=[1, STRIDE4, STRIDE4, 1], padding='VALID') +
-#        #                    biases_conv4)
-#
-#        # Reshape output tensor to a rank 1 tensor
-#        # conv_flat = tf.reshape(conv4, [-1, self.fully_size])
-#        conv_flat = tf.reshape(conv3, [-1, self.fully_size])
-#
-#        # 2 Fully connected layers
-#        fully1 = tf.nn.relu(tf.matmul(conv_flat, weights_fully1) + tf.matmul(self.action_input_target,
-#                                                                             weights_actions) + biases_fully1)
-#        fully2 = tf.nn.relu(tf.matmul(fully1, weights_fully2) + biases_fully2)
-#
-#        #return tf.matmul(fully2, weights_final) + biases_final
         return out
 
     def restore_pretrained_weights(self, filter_path):
@@ -381,19 +270,3 @@ class CriticNetwork:
     def target_evaluate(self, state_batch, action_batch):
         return self.sess.run(self.Q_output_target, feed_dict={self.map_input: state_batch,
                                                               self.action_input: action_batch})
-
-
-# Create variables with a fan-in condition
-def create_variable(shape, f, name=None, trainable=True):
-    return tf.Variable(tf.random_uniform(shape, -1/math.sqrt(f), 1/math.sqrt(f)), name=name, trainable=trainable)
-
-def create_variable_normal(shape, f, name=None, trainable=True):
-    #return tf.Variable(tf.random_uniform(shape, -1/math.sqrt(f), 1/math.sqrt(f)), name=name, trainable=trainable)
-    return tf.Variable(tf.random_normal(shape, stddev=0.1), name=name, trainable=trainable)
-
-def create_variable_zero(shape, f, name=None, trainable=True):
-    #return tf.Variable(tf.random_uniform(shape, -1/math.sqrt(f), 1/math.sqrt(f)), name=name, trainable=trainable)
-    return tf.Variable(tf.zeros(shape), name=name, trainable=trainable)
-
-def create_variable_final(shape):
-    return tf.Variable(tf.random_uniform(shape, -FINAL_WEIGHT_INIT, FINAL_WEIGHT_INIT))
