@@ -89,7 +89,7 @@ class CriticNetwork:
 
             # Define the action gradients for the actor training step
             with tf.name_scope('critic/q_gradients'):
-                self.action_gradients = tf.gradients(self.Q_output, self.action_input)
+                self.q_gradients = tf.gradients(self.Q_output, self.action_input)
 
             with tf.control_dependencies([self.optimizer]):
                 with tf.name_scope('critic/moving_average'):
@@ -190,14 +190,14 @@ class CriticNetwork:
 
         self.train_counter += 1
 
-    def get_action_gradient(self, state_batch, action_batch):
+    def get_q_gradient(self, state_batch, action_batch):
 
         # Get the action gradients for the actor optimization
-        action_gradients = self.sess.run(self.action_gradients, feed_dict={self.map_input: state_batch,
+        q_gradients = self.sess.run(self.q_gradients, feed_dict={self.map_input: state_batch,
                                                                            self.action_input: action_batch})[0]
 
         # Create summaries for the action gradients and add them to the summary writer
-        action_grads_mean = np.mean(action_gradients, axis=0)
+        action_grads_mean = np.mean(q_gradients, axis=0)
         self.action_grads_mean_plot += action_grads_mean
 
         # Only save data every 10 steps
@@ -216,7 +216,7 @@ class CriticNetwork:
 
             self.action_grads_mean_plot = [0, 0]
 
-        return action_gradients
+        return q_gradients
 
     def evaluate(self, state_batch, action_batch):
 

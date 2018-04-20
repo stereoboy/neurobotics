@@ -198,7 +198,7 @@ class DDPG:
             # Get the action batch so we can calculate the action gradient with it
             # Then get the action gradient batch and adapt the gradient with the gradient inverting method
             action_batch_for_gradients = self.actor_network.evaluate(state_batch)
-            q_gradient_batch = self.critic_network.get_action_gradient(state_batch, action_batch_for_gradients)
+            q_gradient_batch = self.critic_network.get_q_gradient(state_batch, action_batch_for_gradients)
             q_gradient_batch = self.grad_inv.invert(q_gradient_batch, action_batch_for_gradients)
 
             # Now we can train the actor
