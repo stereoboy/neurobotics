@@ -41,6 +41,13 @@ PLOT_STEP = 10
 class CriticNetwork:
 
     def __init__(self, image_size, action_size, image_no, session, summary_writer):
+        def getter_ema(ema):
+            def ema_getter(getter, name, *args, **kwargs):
+                var = getter(name, *args, **kwargs)
+                ema_var = ema.average(var)
+                print(var, ema_var)
+                return ema_var if ema_var else var
+            return ema_getter
 
         self.graph = session.graph
 
@@ -58,38 +65,43 @@ class CriticNetwork:
             # Create critic network
             self.map_input = tf.placeholder("float", [None, image_size, image_size, image_no], name='map_input')
             self.action_input = tf.placeholder("float", [None, action_size], name="action_input")
-            self.Q_output = self.create_network()
+            self.y_input = tf.placeholder("float", [None, 1], name="y_input")
 
-            # Get all the variables in the critic network for exponential moving average, create ema op
-            with tf.variable_scope("critic") as scope:
+            with tf.variable_scope('critic/network') as scope:
+                self.Q_output = self.create_base_network()
+
+                # Get all the variables in the critic network for exponential moving average, create ema op
                 self.critic_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
-            self.ema_obj = tf.train.ExponentialMovingAverage(decay=TARGET_DECAY)
-            with tf.name_scope('critic/moving_average'):
-                self.compute_ema = self.ema_obj.apply(self.critic_variables)
+                print(self.critic_variables)
 
-            # Create target critic network
-            self.Q_output_target = self.create_target_network()
-
-            # L2 Regularization for all Variables
-#            self.regularization = 0
-#            for variable in self.critic_variables:
-#                self.regularization += tf.nn.l2_loss(variable)
-            with tf.name_scope('critic/regularization'):
-                regularization_loss = tf.losses.get_regularization_loss(scope='critic')
+                # L2 Regularization for all Variables
+#               with tf.name_scope('critic/regularization'):
+#                  regularization_loss = tf.losses.get_regularization_loss(scope='critic')
 
             # Define the loss with regularization term
-            self.y_input = tf.placeholder("float", [None, 1], name="y_input")
-            with tf.name_scope('cal_loss'):
+            with tf.name_scope('critic/cal_loss'):
                 self.td_error = tf.reduce_mean(tf.pow(self.Q_output - self.y_input, 2))
                 self.loss = self.td_error #+ regularization_loss
 
             # Define the optimizer
-            with tf.name_scope('q_param_opt'):
+            with tf.name_scope('critic/q_param_opt'):
                 self.optimizer = tf.train.AdamOptimizer(LEARNING_RATE).minimize(self.loss)
 
             # Define the action gradients for the actor training step
-            with tf.name_scope('q_gradients'):
+            with tf.name_scope('critic/q_gradients'):
                 self.action_gradients = tf.gradients(self.Q_output, self.action_input)
+
+            with tf.control_dependencies([self.optimizer]):
+                with tf.name_scope('critic/moving_average'):
+                    self.ema_obj = tf.train.ExponentialMovingAverage(decay=TARGET_DECAY)
+                    self.compute_ema = self.ema_obj.apply(self.critic_variables)
+                    print([self.ema_obj.average(x) for x in self.critic_variables])
+
+            with tf.variable_scope('critic'):
+                with tf.name_scope('target_network'):
+                    with tf.variable_scope('network', reuse=tf.AUTO_REUSE, custom_getter=getter_ema(self.ema_obj)):
+                        self.Q_output_target = self.create_base_network()
+
 
             # Variables for plotting
             self.action_grads_mean_plot = [0, 0]
@@ -153,66 +165,13 @@ class CriticNetwork:
 
         return out
 
-    def create_network(self):
-
-        with tf.variable_scope('critic'):
-            out = self.create_base_network()
-            print("out", out)
-
-        return out
-
-    def create_target_network(self):
-        def getter_ema(ema):
-            def ema_getter(getter, name, *args, **kwargs):
-                var = getter(name, *args, **kwargs)
-                ema_var = ema.average(var)
-                print(var, ema_var)
-                return ema_var if ema_var else var
-            return ema_getter
-
-        with tf.variable_scope('critic', reuse=True, custom_getter=getter_ema(self.ema_obj)):
-            with tf.name_scope('target_network'):
-                out = self.create_base_network()
-
-        return out
-
-    def restore_pretrained_weights(self, filter_path):
-
-        # First restore the critic filters
-        saver = tf.train.Saver({"weights_conv1": self.critic_variables[0],
-                                "biases_conv1":  self.critic_variables[1],
-                                "weights_conv2": self.critic_variables[2],
-                                "biases_conv2":  self.critic_variables[3],
-                                "weights_conv3": self.critic_variables[4],
-                                "biases_conv3":  self.critic_variables[5],
-                                # "weights_conv4": self.critic_variables[6],
-                                # "biases_conv4":  self.critic_variables[7]
-                                })
-
-        saver.restore(self.sess, filter_path)
-
-        # Now restore the target net filters
-        saver_target = tf.train.Saver({"weights_conv1": self.ema_obj.average(self.critic_variables[0]),
-                                       "biases_conv1":  self.ema_obj.average(self.critic_variables[1]),
-                                       "weights_conv2": self.ema_obj.average(self.critic_variables[2]),
-                                       "biases_conv2":  self.ema_obj.average(self.critic_variables[3]),
-                                       "weights_conv3": self.ema_obj.average(self.critic_variables[4]),
-                                       "biases_conv3":  self.ema_obj.average(self.critic_variables[5]),
-                                       # "weights_conv4": self.ema_obj.average(self.critic_variables[6]),
-                                       # "biases_conv4":  self.ema_obj.average(self.critic_variables[7])
-                                       })
-
-        saver_target.restore(self.sess, filter_path)
-
     def train(self, y_batch, state_batch, action_batch):
 
         # Run optimizer and compute some summary values
-        td_error_value, _ = self.sess.run([self.td_error, self.optimizer], feed_dict={self.y_input: y_batch,
+        td_error_value, _ = self.sess.run([self.td_error, self.compute_ema], feed_dict={self.y_input: y_batch,
                                                                                       self.map_input: state_batch,
                                                                                       self.action_input: action_batch})
 
-        # Now update the target net
-        self.update_target()
 
         # Increment the td error plot variable for td error average plotting
         self.td_error_plot += td_error_value
@@ -230,10 +189,6 @@ class CriticNetwork:
             self.td_error_plot = 0.0
 
         self.train_counter += 1
-
-    def update_target(self):
-
-        self.sess.run(self.compute_ema)
 
     def get_action_gradient(self, state_batch, action_batch):
 
