@@ -37,6 +37,13 @@ PLOT_STEP = 10
 class ActorNetwork:
 
     def __init__(self, image_size, action_size, image_no, session, summary_writer, training_step_variable):
+        def getter_ema(ema):
+            def ema_getter(getter, name, *args, **kwargs):
+                var = getter(name, *args, **kwargs)
+                ema_var = ema.average(var)
+                print(var, ema_var)
+                return ema_var if ema_var else var
+            return ema_getter
 
         self.graph = session.graph
 
@@ -53,28 +60,34 @@ class ActorNetwork:
 
             # Create actor network
             self.map_input = tf.placeholder("float", [None, self.image_size, self.image_size, self.image_no], name="map_input")
-            self.action_output = self.create_network()
+            self.q_gradient_input = tf.placeholder("float", [None, action_size], name='q_gradient_input')
 
-            # Get all the variables in the actor network for exponential moving average, create ema op
-            with tf.variable_scope("actor") as scope:
+            with tf.variable_scope('actor/network') as scope:
+                self.action_output = self.create_base_network()
+
+                # Get all the variables in the actor network for exponential moving average, create ema op
                 self.actor_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
                 print(self.actor_variables)
-            self.ema_obj = tf.train.ExponentialMovingAverage(decay=TARGET_DECAY)
-            with tf.name_scope('actor/moving_average'):
-                self.compute_ema = self.ema_obj.apply(self.actor_variables)
-
-            # Create target actor network
-            self.action_output_target = self.create_target_network()
 
             # Define the gradient operation that delivers the gradients with the action gradient from the critic
-            self.q_gradient_input = tf.placeholder("float", [None, action_size], name='q_gradient_input')
-            with tf.name_scope('a_gradients'):
+            with tf.name_scope('actor/a_gradients'):
                 self.parameters_gradients = tf.gradients(self.action_output, self.actor_variables, -self.q_gradient_input)
 
             # Define the optimizer
-            with tf.name_scope('a_param_opt'):
+            with tf.name_scope('actor/a_param_opt'):
                 self.optimizer = tf.train.AdamOptimizer(LEARNING_RATE).apply_gradients(zip(self.parameters_gradients,
                                                                                        self.actor_variables), global_step=training_step_variable)
+
+            with tf.control_dependencies([self.optimizer]):
+                with tf.name_scope('actor/moving_average'):
+                    self.ema_obj = tf.train.ExponentialMovingAverage(decay=TARGET_DECAY)
+                    self.compute_ema = self.ema_obj.apply(self.actor_variables)
+
+            # Create target actor network
+            with tf.variable_scope('actor'):
+                with tf.name_scope('target_network'):
+                    with tf.variable_scope('network', reuse=tf.AUTO_REUSE, custom_getter=getter_ema(self.ema_obj)):
+                        self.action_output_target = self.create_base_network()
 
             # Variables for plotting
             self.actions_mean_plot = [0, 0]
@@ -136,41 +149,12 @@ class ActorNetwork:
 
         return out
 
-    def create_network(self):
-
-        with tf.variable_scope('actor'):
-            out = self.create_base_network()
-
-        return out
-
-    def create_target_network(self):
-        def getter_ema(ema):
-            def ema_getter(getter, name, *args, **kwargs):
-                var = getter(name, *args, **kwargs)
-                ema_var = ema.average(var)
-                print(var, ema_var)
-                return ema_var if ema_var else var
-            return ema_getter
-
-        with tf.variable_scope('actor', reuse=True, custom_getter=getter_ema(self.ema_obj)):
-            with tf.name_scope('target_network'):
-                out = self.create_base_network()
-
-        return out
-
     def train(self, q_gradient_batch, state_batch):
 
         # Train the actor net
-        self.sess.run(self.optimizer, feed_dict={self.q_gradient_input: q_gradient_batch, self.map_input: state_batch})
-
-        # Update the target
-        self.update_target()
+        self.sess.run(self.compute_ema, feed_dict={self.q_gradient_input: q_gradient_batch, self.map_input: state_batch})
 
         self.train_counter += 1
-
-    def update_target(self):
-
-        self.sess.run(self.compute_ema)
 
     def get_action(self, state):
 
