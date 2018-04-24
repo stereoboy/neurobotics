@@ -22,7 +22,7 @@ FILTER3 = 32
 # FILTER4 = 64
 
 # How fast is learning
-LEARNING_RATE = 0.0005
+LEARNING_RATE = 5e-5
 
 # How fast does the target net track
 TARGET_DECAY = 0.9999
@@ -104,6 +104,9 @@ class ActorNetwork:
     def custom_initializer_for_final_dense(self):
         return tf.random_uniform_initializer(-FINAL_WEIGHT_INIT, FINAL_WEIGHT_INIT)
 
+    def custom_initializer_for_final_bias(self):
+        return tf.random_uniform_initializer(-3.0e-4, 3.0e-4)
+
     def create_base_network(self):
         # new setup
         weight_decay = 1e-2
@@ -144,8 +147,8 @@ class ActorNetwork:
         out = tf.layers.dense(inputs=out, units=self.action_size,
                 kernel_initializer=self.custom_initializer_for_final_dense(),
                 kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
-                bias_initializer=self.custom_initializer_for_final_dense(),
-                activation=None)
+                bias_initializer=self.custom_initializer_for_final_bias(),
+                activation=tf.nn.tanh)
 
         return out
 
