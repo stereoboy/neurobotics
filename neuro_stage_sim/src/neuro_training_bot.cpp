@@ -6,6 +6,7 @@
 #include "geometry_msgs/PoseStamped.h"
 #include "nav_msgs/Odometry.h"
 #include "nav_msgs/OccupancyGrid.h"
+#include <tf/transform_datatypes.h>
 
 #include <iostream>
 #include<vector>
@@ -28,12 +29,14 @@ double x_max = 19.5;
 double x_min = 0.5;
 double y_max = 19.5;
 double y_min = 0.5;
+double yaw_max = 3.10;
+double yaw_min = -3.10;
 double o = 0.0;
 double resolution = 0.05; // Resolution of the map, meters/pixel. Check *.yaml
 int threshold_pose_valid = 0;
 int map_size = 400;
 
-double stddev = 3.0;
+double stddev = 4.0;
 
 double new_pose_x = 0.0;
 double new_pose_y = 0.0;
@@ -61,7 +64,7 @@ void publishNewGoal()
 {
     double x;
     double y;
-
+#
     // Initialize the random value
     boost::normal_distribution<> nd(0.0, stddev);
     boost::variate_generator<boost::mt19937&, boost::normal_distribution<> > var_nor(rng, nd);
@@ -117,6 +120,7 @@ void publishNewPose()
 
     double x;
     double y;
+    double yaw;
 
     // Check if the point is unoccupied
     bool collision = true;
@@ -125,8 +129,9 @@ void publishNewPose()
         collision = false;
         x = getRandomDouble(x_min, x_max, 0.00);
         y = getRandomDouble(y_min, y_max, 0.00);
+        yaw = getRandomDouble(yaw_min, yaw_max, 0.00);
 
-        ROS_ERROR("NewGoal() (%f, %f)", x, y);
+        ROS_ERROR("NewGoal() (%f, %f, %f)", x, y, yaw);
 
         // First check for the costmap values
         pixel_position = (unsigned int)(x / resolution) + (unsigned int)(y / resolution) * map_size;
@@ -153,8 +158,10 @@ void publishNewPose()
     pose.position.z = 0.0;
     pose.position.x = new_pose_x = x;
     pose.position.y = new_pose_y = y;
-    pose.orientation.z = 1.0;
-    pose.orientation.w = o;
+    //pose.orientation.z = 1.0;
+    //pose.orientation.w = o;
+    //pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, 0); // http://docs.ros.org/api/tf/html/c++/transform__datatypes_8h.html
+    pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, yaw); // http://docs.ros.org/api/tf/html/c++/transform__datatypes_8h.html
     stage_pub.publish(pose);
 }
 
