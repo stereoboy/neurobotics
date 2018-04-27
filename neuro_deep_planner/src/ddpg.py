@@ -29,6 +29,7 @@ SIGMA = 0.20
 # Action boundaries
 A0_BOUNDS = [-0.4, 0.4]
 A1_BOUNDS = [-0.4, 0.4]
+ACTION_BOUNDS = [[-0.4, 0.4], [-0.1, 0.1]]
 
 # Should we load a saved net
 PRE_TRAINED_NETS = False
@@ -39,7 +40,7 @@ NET_LOAD_PATH = os.path.join(os.path.dirname(__file__), os.pardir)+"/pre_trained
 # Data Directory
 #DATA_PATH = os.path.expanduser('~') + '/rl_nav_data'
 DATA_PATH = './rl_nav_data'
-#DATA_PATH = './rl_nav_data_simple_no_wall'
+#DATA_PATH = './rl_nav_data_rotation_backup'
 
 # path to tensorboard data
 TFLOG_PATH = DATA_PATH + '/tf_logs'
@@ -80,6 +81,7 @@ class DDPG:
         self.graph = self.session.graph
 
         with self.graph.as_default():
+            #tf.set_random_seed(1)
 
             # View the state batches
             self.visualize_input = VISUALIZE_BUFFER
@@ -100,7 +102,7 @@ class DDPG:
             self.action = np.zeros(2, dtype='float')
 
             # Initialize the grad inverter object to keep the action bounds
-            self.grad_inv = GradInverter(A0_BOUNDS, A1_BOUNDS, self.session)
+            #self.grad_inv = GradInverter(A0_BOUNDS, A1_BOUNDS, self.session)
 
             # Make sure the directory for the data files exists
             if not tf.gfile.Exists(DATA_PATH):
@@ -199,7 +201,7 @@ class DDPG:
             # Then get the action gradient batch and adapt the gradient with the gradient inverting method
             action_batch_for_gradients = self.actor_network.evaluate(state_batch)
             q_gradient_batch = self.critic_network.get_q_gradient(state_batch, action_batch_for_gradients)
-            q_gradient_batch = self.grad_inv.invert(q_gradient_batch, action_batch_for_gradients)
+            #q_gradient_batch = self.grad_inv.invert(q_gradient_batch, action_batch_for_gradients)
 
             # Now we can train the actor
             self.actor_network.train(q_gradient_batch, state_batch)
@@ -216,6 +218,34 @@ class DDPG:
 
         self.data_manager.check_for_enqueue()
 
+    def normalize_action(self, raw_action, action_bounds):
+        action = np.zeros_like(raw_action)
+        for i, x in enumerate(raw_action):
+            mean = 0.5*(action_bounds[i][0] + action_bounds[i][1])
+            half_range = 0.5*(-action_bounds[i][0] + action_bounds[i][1])
+            action[i] = float(x - mean)/half_range
+#        print("normalize_action")
+#        print("raw_action", raw_action)
+#        print("action", action)
+        return action
+
+    def recover_action(self, action, action_bounds):
+        raw_action = np.zeros_like(action)
+        for i, x in enumerate(action):
+            mean = 0.5*(action_bounds[i][0] + action_bounds[i][1])
+            half_range = 0.5*(-action_bounds[i][0] + action_bounds[i][1])
+            raw_action[i] = x*half_range + mean
+#        print("recover_action")
+#        print("action", action)
+#        print("raw_action", raw_action)
+        return raw_action
+
+    def clip_action(self, action, action_bounds):
+        clipped_action = np.zeros_like(action)
+        for i, x in enumerate(action):
+            clipped_action[i] = np.clip(x, action_bounds[i][0], action_bounds[i][1])
+        return clipped_action
+
     def get_action(self, state):
 
         # normalize the state
@@ -224,6 +254,9 @@ class DDPG:
 
         # Get the action
         self.action = self.actor_network.get_action(state)
+
+        print("normalized action A", self.action)
+        self.action = self.recover_action(self.action, ACTION_BOUNDS)
 
         print("self.noise_flag", self.noise_flag)
         print("self.training_step", self.training_step)
@@ -239,14 +272,17 @@ class DDPG:
             #if self.training_step < MAX_NOISE_STEP:
                 #self.action += (MAX_NOISE_STEP - self.training_step) / MAX_NOISE_STEP * self.exploration_noise.noise()
                 #self.action += np.exp(-1e-5*self.training_step) * self.exploration_noise.noise()
-                self.action += noise_factor * self.exploration_noise.noise()
+                noise = noise_factor * self.exploration_noise.noise()
+                print("noise", noise)
+                self.action += noise
                 print("action B", self.action)
             # if action value lies outside of action bounds, rescale the action vector
-            if self.action[0] < A0_BOUNDS[0] or self.action[0] > A0_BOUNDS[1]:
-                self.action *= np.fabs(A0_BOUNDS[0]/self.action[0])
-            if self.action[1] < A0_BOUNDS[0] or self.action[1] > A0_BOUNDS[1]:
-                self.action *= np.fabs(A1_BOUNDS[0]/self.action[1])
-
+#            if self.action[0] < A0_BOUNDS[0] or self.action[0] > A0_BOUNDS[1]:
+#                self.action *= np.fabs(A0_BOUNDS[0]/self.action[0])
+#            if self.action[1] < A0_BOUNDS[0] or self.action[1] > A0_BOUNDS[1]:
+#                self.action *= np.fabs(A1_BOUNDS[0]/self.action[1])
+            self.action = self.clip_action(self.action, ACTION_BOUNDS)
+            print("action C", self.action)
         # Life q value output for this action and state
         self.print_q_value(state, self.action)
 
@@ -271,7 +307,8 @@ class DDPG:
 
         # Safe old state and old action for next experience
         self.old_state = state
-        self.old_action = self.action
+        #self.old_action = self.action
+        self.old_action = self.normalize_action(self.action, ACTION_BOUNDS)
 
     def print_q_value(self, state, action):
 
