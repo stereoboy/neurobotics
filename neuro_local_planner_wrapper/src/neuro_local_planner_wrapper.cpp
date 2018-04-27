@@ -271,34 +271,21 @@ namespace neuro_local_planner_wrapper
         geometry_msgs::PoseStamped goal_position = global_plan_.back();
 
         // Transform current position of robot to map frame
-        tf::StampedTransform stamped_transform;
+        geometry_msgs::PoseStamped current_pose;
+        geometry_msgs::PoseStamped current_pose_to_goal_position;
         try
         {
-            // ros::Time(0) gives us the latest available transform
-            tf_->lookupTransform(goal_position.header.frame_id, current_pose_.frame_id_, ros::Time(0),
-                                 stamped_transform);
+            tf::poseStampedTFToMsg(current_pose_, current_pose);
+            tf_->waitForTransform(  goal_position.header.frame_id, current_pose_.frame_id_,
+                                    ros::Time(0), ros::Duration(2.0));
+            tf_->transformPose(goal_position.header.frame_id, current_pose, current_pose_to_goal_position);
         }
         catch (tf::TransformException ex)
         {
-            ROS_ERROR("%s",ex.what());
+            ROS_ERROR("[failed to transform current pose to map frame to check goal position : %s", ex.what());
         }
-
-        // Translation TODO: WHYYY? + -> -
-        double x_current_pose_map_frame = current_pose_.getOrigin().getX() - stamped_transform.getOrigin().getX();
-        double y_current_pose_map_frame = current_pose_.getOrigin().getY() - stamped_transform.getOrigin().getY();
-
-        // Rotation
-        double roll, pitch, yaw;
-        stamped_transform.getBasis().getRPY(roll, pitch, yaw);
-        double x_temp = x_current_pose_map_frame;
-        double y_temp = y_current_pose_map_frame;
-        x_current_pose_map_frame = cos(yaw)*x_temp - sin(yaw)*y_temp;
-        y_current_pose_map_frame = sin(yaw)*x_temp + cos(yaw)*y_temp;
-
-        // Get distance from robot to goal -> for now we only consider distance but I think we could also include
-        // orientation
-        double dist = sqrt(pow((x_current_pose_map_frame - goal_position.pose.position.x), 2.0)
-                           + pow((y_current_pose_map_frame - goal_position.pose.position.y), 2.0));
+        double dist = sqrt(    pow((current_pose_to_goal_position.pose.position.x - goal_position.pose.position.x), 2.0)
+                            +   pow((current_pose_to_goal_position.pose.position.y - goal_position.pose.position.y), 2.0));
 
         // Check if the robot has reached the goal
         if(dist < goalTolerance)
@@ -328,39 +315,19 @@ namespace neuro_local_planner_wrapper
         geometry_msgs::PoseStamped goal_position = global_plan_.back();
 
         // Transform current position of robot to map frame
-        tf::StampedTransform stamped_transform;
+        geometry_msgs::PoseStamped current_pose;
+        geometry_msgs::PoseStamped current_pose_to_goal_position;
         try
         {
-            // ros::Time(0) gives us the latest available transform
-            tf_->lookupTransform(goal_position.header.frame_id, current_pose_.frame_id_, ros::Time(0),
-                                 stamped_transform);
+            tf::poseStampedTFToMsg(current_pose_, current_pose);
+            tf_->waitForTransform(  goal_position.header.frame_id, current_pose_.frame_id_,
+                                    ros::Time(0), ros::Duration(2.0));
+            tf_->transformPose(goal_position.header.frame_id, current_pose, current_pose_to_goal_position);
         }
         catch (tf::TransformException ex)
         {
-            ROS_ERROR("%s",ex.what());
+            ROS_ERROR("[failed to transform current pose to map frame to check subgoal position : %s", ex.what());
         }
-
-        // Translation TODO: WHYYY? + -> -
-        double x_current_pose_map_frame = current_pose_.getOrigin().getX() - stamped_transform.getOrigin().getX();
-        double y_current_pose_map_frame = current_pose_.getOrigin().getY() - stamped_transform.getOrigin().getY();
-
-        // Rotation
-        double roll, pitch, yaw;
-        stamped_transform.getBasis().getRPY(roll, pitch, yaw);
-        double x_temp = x_current_pose_map_frame;
-        double y_temp = y_current_pose_map_frame;
-        x_current_pose_map_frame = cos(yaw)*x_temp - sin(yaw)*y_temp;
-        y_current_pose_map_frame = sin(yaw)*x_temp + cos(yaw)*y_temp;
-
-        // Transform the global plan into costmap coordinates
-        // pose given in fixed frame of global plan which is by default "map"
-        geometry_msgs::PoseStamped pose_fixed_frame;
-
-        // pose given in global frame of the local cost map
-        geometry_msgs::PoseStamped pose_robot_base_frame;
-
-        std::vector<geometry_msgs::Point> global_plan_map_coordinates;
-        geometry_msgs::Point a_global_plan_map_coordinate;
 
         std::vector<geometry_msgs::PoseStamped> global_plan_temp = global_plan_;
 
@@ -368,10 +335,10 @@ namespace neuro_local_planner_wrapper
         int touched_max_index = - 1;
         for (int i = global_plan_temp.size() - 2; i >= 0; i--) // skip final goal point
         {
-            geometry_msgs::PoseStamped current = global_plan_temp[i];
+            geometry_msgs::PoseStamped subgoal = global_plan_temp[i];
             // Get distance from robot to path point
-            double dist = sqrt(pow((x_current_pose_map_frame - current.pose.position.x), 2.0)
-                               + pow((y_current_pose_map_frame - current.pose.position.y), 2.0));
+            double dist = sqrt(     pow((   current_pose_to_goal_position.pose.position.x - subgoal.pose.position.x), 2.0)
+                               +    pow((   current_pose_to_goal_position.pose.position.y - subgoal.pose.position.y), 2.0));
 
             // Check if the robot has reached the goal
             if(dist < goalTolerance* 0.6)
