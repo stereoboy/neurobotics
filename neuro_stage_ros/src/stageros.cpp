@@ -288,9 +288,9 @@ StageNode::cmdvelReceived(int idx, const boost::shared_ptr<geometry_msgs::Twist 
     this->positionmodels[idx]->SetSpeed(msg->linear.x,
                                         msg->linear.y,
                                         msg->angular.z);
-
-    this->positionmodels[1]->SetSpeed(0.2, 0.0, 0.2);
-    this->positionmodels[2]->SetSpeed(-0.3, 0.0, -0.3);
+    // TODO
+     this->positionmodels[1]->SetSpeed(0.2, 0.0, 0.2);
+     this->positionmodels[2]->SetSpeed(-0.3, 0.0, -0.3);
 
     this->base_last_cmd = this->sim_time;
 }
@@ -298,6 +298,7 @@ StageNode::cmdvelReceived(int idx, const boost::shared_ptr<geometry_msgs::Twist 
 void
 StageNode::poseReceived(int idx, const boost::shared_ptr<geometry_msgs::Pose const>& msg)
 {
+    ROS_WARN("poseReceived(%d)", idx);
     boost::mutex::scoped_lock lock(msg_lock);
     Stg::Pose pose;
 
@@ -418,10 +419,12 @@ StageNode::SubscribeModels()
         //new_robot->cmdvel_sub = n_.subscribe<geometry_msgs::Twist>(mapName(CMD_VEL, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10, boost::bind(&StageNode::cmdvelReceived, this, r, _1));
 	    new_robot->cmdvel_sub = n_.subscribe<geometry_msgs::Twist>("/move_base/NeuroLocalPlannerWrapper/action", 10, boost::bind(&StageNode::cmdvelReceived, this, 0, _1));
         //new_robot->pose_sub = n_.subscribe<geometry_msgs::Pose>(mapName(POSE, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10, boost::bind(&StageNode::poseReceived, this, r, _1));
-        new_robot->pose_sub = n_.subscribe<geometry_msgs::Pose>("neuro_stage_ros/set_pose", 10, boost::bind(&StageNode::poseReceived, this, 0, _1));
+        if (r == 0)
+            new_robot->pose_sub = n_.subscribe<geometry_msgs::Pose>("neuro_stage_ros/set_pose", 10, boost::bind(&StageNode::poseReceived, this, 0, _1));
 
         //new_robot->posestamped_sub = n_.subscribe<geometry_msgs::PoseStamped>(mapName(POSESTAMPED, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10, boost::bind(&StageNode::poseStampedReceived, this, r, _1));
-        new_robot->posestamped_sub = n_.subscribe<geometry_msgs::PoseStamped>("neuro_stage_ros/set_pose_stamped", 10, boost::bind(&StageNode::poseStampedReceived, this, 0, _1));
+        if (r == 0)
+            new_robot->posestamped_sub = n_.subscribe<geometry_msgs::PoseStamped>("neuro_stage_ros/set_pose_stamped", 10, boost::bind(&StageNode::poseStampedReceived, this, 0, _1));
 
         for (size_t s = 0;  s < new_robot->lasermodels.size(); ++s)
         {
