@@ -7,6 +7,7 @@
 #include <costmap_2d/costmap_2d_ros.h>
 #include <nav_core/base_local_planner.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Vector3.h>
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Twist.h>
 #include <nav_msgs/Path.h>
@@ -82,6 +83,10 @@ namespace neuro_local_planner_wrapper
             bool isGoalInvisible(double& reward);
 
             void processGoalVisibility();
+
+            double calculateRotationMomentum(std::vector<geometry_msgs::PoseStamped> subpath);
+
+            bool isSameDirection(std::string label, double yaw1, double yaw2);
 
             int goal_invisible_count;
 
@@ -164,6 +169,9 @@ namespace neuro_local_planner_wrapper
             // To close up an episode if it lasts too long
             double max_time_;
             double start_time_;
+
+            // For x/yaw control
+            bool rotation_control;
 
             // For plotting
             int temp_time_;

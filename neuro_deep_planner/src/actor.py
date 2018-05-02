@@ -22,7 +22,7 @@ FILTER3 = 32
 # FILTER4 = 64
 
 # How fast is learning
-LEARNING_RATE = 0.0005
+LEARNING_RATE = 1e-4
 
 # How fast does the target net track
 TARGET_DECAY = 0.9999
@@ -69,10 +69,12 @@ class ActorNetwork:
                 self.actor_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
                 print(self.actor_variables)
 
+            #with tf.name_scope('actor/regularization'):
+            #    regularization_loss = tf.losses.get_regularization_loss(scope='actor/network')
+
             # Define the gradient operation that delivers the gradients with the action gradient from the critic
             with tf.name_scope('actor/a_gradients'):
-                self.parameters_gradients = tf.gradients(self.action_output, self.actor_variables, -self.q_gradient_input)
-
+                self.parameters_gradients = tf.gradients(self.action_output, self.actor_variables, -self.q_gradient_input) #+ tf.gradients(regularization_loss, self.actor_variables, name="regularization")
             # Define the optimizer
             with tf.name_scope('actor/a_param_opt'):
                 self.optimizer = tf.train.AdamOptimizer(LEARNING_RATE).apply_gradients(zip(self.parameters_gradients,
@@ -103,6 +105,9 @@ class ActorNetwork:
 
     def custom_initializer_for_final_dense(self):
         return tf.random_uniform_initializer(-FINAL_WEIGHT_INIT, FINAL_WEIGHT_INIT)
+
+    def custom_initializer_for_final_bias(self):
+        return tf.random_uniform_initializer(-3.0e-4, 3.0e-4)
 
     def create_base_network(self):
         # new setup

@@ -23,7 +23,7 @@ FILTER3 = 32
 # FILTER4 = 64
 
 # How fast is learning
-LEARNING_RATE = 0.0005
+LEARNING_RATE = 5e-4
 
 # How much do we regularize the weights of the net
 REGULARIZATION_DECAY = 0.0
@@ -75,8 +75,8 @@ class CriticNetwork:
                 print(self.critic_variables)
 
                 # L2 Regularization for all Variables
-#               with tf.name_scope('critic/regularization'):
-#                  regularization_loss = tf.losses.get_regularization_loss(scope='critic')
+            #with tf.name_scope('critic/regularization'):
+            #    regularization_loss = tf.losses.get_regularization_loss(scope='critic/network')
 
             # Define the loss with regularization term
             with tf.name_scope('critic/cal_loss'):

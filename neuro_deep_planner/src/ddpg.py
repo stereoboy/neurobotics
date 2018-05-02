@@ -28,7 +28,8 @@ SIGMA = 0.20
 
 # Action boundaries
 A0_BOUNDS = [-0.4, 0.4]
-A1_BOUNDS = [-0.4, 0.4]
+A1_BOUNDS = [-0.1, 0.1]
+ACTION_BOUNDS = [[-0.4, 0.4], [-0.4, 0.4]]
 
 # Should we load a saved net
 PRE_TRAINED_NETS = False

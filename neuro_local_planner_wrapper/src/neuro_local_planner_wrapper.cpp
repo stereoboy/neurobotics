@@ -5,6 +5,7 @@
 PLUGINLIB_EXPORT_CLASS(neuro_local_planner_wrapper::NeuroLocalPlannerWrapper, nav_core::BaseLocalPlanner)
 
 double goalTolerance = 0.2;
+double goalRotationTolerance = 0.5; // in radians
 
 int threshold_crash = 170;
 double subgoal_reward = 0.2;
@@ -12,7 +13,7 @@ double subgoal_reward = 0.2;
 namespace neuro_local_planner_wrapper
 {
     // Constructor
-    NeuroLocalPlannerWrapper::NeuroLocalPlannerWrapper() : initialized_(false),
+    NeuroLocalPlannerWrapper::NeuroLocalPlannerWrapper() : initialized_(false), rotation_control(true),
                                                            blp_loader_("nav_core", "nav_core::BaseLocalPlanner") {}
 
     // Destructor
@@ -106,11 +107,11 @@ namespace neuro_local_planner_wrapper
             temp_goal_count_ = 0;
 
             // To close up too long episodes
+            start_time_ = ros::Time::now().toSec();
             max_time_ = 60*1.5;
 
             // counter after Goal gets invisible
             goal_invisible_count = 0;
-
             // We are now initialized
             initialized_ = true;
             clock_counter = 0;
@@ -145,6 +146,16 @@ namespace neuro_local_planner_wrapper
                 ROS_ERROR("Failed to set plan for existing plugin");
                 return false;
             }
+        }
+
+        // Build global_plan points pose orientation
+        for (int i = 0; i < global_plan_.size(); i++)
+        {
+            int start = std::max(0, i - 6);
+            int end = std::min((int)(global_plan_.size() - 2), i + 6);
+            std::vector<geometry_msgs::PoseStamped> subpath(&global_plan_[start], &global_plan_[end]);
+            double yaw = calculateRotationMomentum(subpath);
+            global_plan_[i].pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, yaw); // http://docs.ros.org/api/tf/html/c++/transform__datatypes_8h.html
         }
 
         is_running_ = true;
@@ -287,8 +298,19 @@ namespace neuro_local_planner_wrapper
         double dist = sqrt(    pow((current_pose_to_goal_position.pose.position.x - goal_position.pose.position.x), 2.0)
                             +   pow((current_pose_to_goal_position.pose.position.y - goal_position.pose.position.y), 2.0));
 
+        bool condition  = dist < goalTolerance;
+        if (rotation_control && condition)
+        {
+            double current_pose_yaw = tf::getYaw(current_pose_to_goal_position.pose.orientation);
+            double goal_yaw = tf::getYaw(goal_position.pose.orientation);
+            condition &= isSameDirection("goal", current_pose_yaw, goal_yaw);
+            if (condition)
+            {
+                ROS_ERROR("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+            }
+        }
         // Check if the robot has reached the goal
-        if(dist < goalTolerance)
+        if(condition)
         {
             goal_counter_++;
             ROS_ERROR("We reached the goal: %d", goal_counter_);
@@ -333,15 +355,23 @@ namespace neuro_local_planner_wrapper
 
         int touched_subgoal_count = 0;
         int touched_max_index = - 1;
+        double current_pose_yaw = tf::getYaw(current_pose_to_goal_position.pose.orientation);
         for (int i = global_plan_temp.size() - 2; i >= 0; i--) // skip final goal point
         {
-            geometry_msgs::PoseStamped subgoal = global_plan_temp[i];
+            geometry_msgs::PoseStamped subgoal_position = global_plan_temp[i];
             // Get distance from robot to path point
-            double dist = sqrt(     pow((   current_pose_to_goal_position.pose.position.x - subgoal.pose.position.x), 2.0)
-                               +    pow((   current_pose_to_goal_position.pose.position.y - subgoal.pose.position.y), 2.0));
+            double dist = sqrt(     pow((   current_pose_to_goal_position.pose.position.x - subgoal_position.pose.position.x), 2.0)
+                               +    pow((   current_pose_to_goal_position.pose.position.y - subgoal_position.pose.position.y), 2.0));
 
+            bool condition  = dist < goalTolerance;
+            if (rotation_control && condition)
+            {
+                double current_pose_yaw = tf::getYaw(current_pose_to_goal_position.pose.orientation);
+                double goal_yaw = tf::getYaw(subgoal_position.pose.orientation);
+                condition &= isSameDirection("subgoal", current_pose_yaw, goal_yaw);
+            }
             // Check if the robot has reached the goal
-            if(dist < goalTolerance* 0.6)
+            if(condition)
             {
                 //ROS_INFO("dist: %f", dist);
                 //ROS_INFO("We got the sub reward at %d", i);
@@ -849,5 +879,35 @@ namespace neuro_local_planner_wrapper
         }
         else
             goal_invisible_count = 0;  // reset
+    }
+
+    double NeuroLocalPlannerWrapper::calculateRotationMomentum(std::vector<geometry_msgs::PoseStamped> subpath)
+    {
+        double yaw = 0.0;
+        if (subpath.size() < 2)
+        {
+            return 0.0;
+        }
+        geometry_msgs::Vector3 vec;
+        for (int i = 0; i < subpath.size() - 1; i++)
+        {
+            geometry_msgs::PoseStamped cur = subpath[i];
+            geometry_msgs::PoseStamped next = subpath[i + 1];
+
+            vec.x += next.pose.position.x - cur.pose.position.x;
+            vec.y += next.pose.position.y - cur.pose.position.y;
+        }
+
+        yaw = std::atan2(vec.y, vec.x);
+        // normalize
+        double length = sqrt(vec.x*vec.x + vec.y*vec.y);
+        return yaw;
+    }
+
+    bool NeuroLocalPlannerWrapper::isSameDirection(std::string label, double yaw1, double yaw2)
+    {
+        double yaw_diff = fabs(yaw1 - yaw2);
+        ROS_ERROR("### %s yaw diff = %f (%f - %f)", label.c_str(), yaw_diff, yaw1, yaw2);
+        return ((yaw_diff < goalRotationTolerance) || (yaw_diff > 2*3.14 - goalRotationTolerance)) ;
     }
 };
