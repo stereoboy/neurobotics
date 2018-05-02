@@ -8,7 +8,7 @@ import os
 import tensorflow as tf
 
 # Do we want to plot results during training
-PLOTTING = True         # Do we want to plot
+PLOTTING = False         # Do we want to plot
 PLOT_TIME = 1800        # How long do we want to plot in seconds, e.g. 60 s/min * 30 min = 1800 s
 PLOT_INTERVALL = 50000  # How many training steps until we plot the results
 
@@ -86,6 +86,7 @@ def main():
             elif ros_handler.new_setting():
 
                 agent.noise_flag = ros_handler.noise_flag
+                print("noise_flag: {}".format(agent.noise_flag))
 
             else:
                 # Train the network!
