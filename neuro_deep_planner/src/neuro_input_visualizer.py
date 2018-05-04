@@ -36,49 +36,48 @@ class VisualizerRunnable(object):
     def update_im(self, *args):
         return [ self.vis_im ]
 
-    def callback(self, data):
+    def callback(self, transition):
         self.subscriber.unregister()
 
-        #if not data.is_episode_finished:
+        if transition.is_episode_finished:
+            print(transition.reward)
 
-        #print("-->{}chX{}px{}p".format(data.depth, data.width, data.height))
+        #print("-->{}chX{}px{}p".format(transition.depth, transition.width, transition.height))
 
-        data_1d = np.asarray([(100 - d) for d in data.state_representation])
+        data_1d = np.asarray([(100 - d) for d in transition.state_representation])
 
-        data_3d = data_1d.reshape(data.depth, data.height, data.width).swapaxes(1, 2)
+        data_3d = data_1d.reshape(transition.depth, transition.height, transition.width).swapaxes(1, 2)
 
         data_3d = np.rollaxis(data_3d, 0, 3)
 
         # Make this a state batch with just one state in the batch
-        data_3d = np.expand_dims(data_3d, axis=0)
 
-        if data.reward >= 10.0:
-            h_divider = np.full((data_3d.shape[1], 10), 100)
+        if transition.reward >= 10.0:
+            h_divider = np.full((data_3d.shape[0], 10), 100)
             v_divider = np.full((10, data_3d.shape[1]*4+30), 100)
-        elif data.reward < 0.0:
-            h_divider = np.full((data_3d.shape[1], 10), 0)
+        elif transition.reward < 0.0:
+            h_divider = np.full((data_3d.shape[0], 10), 0)
             v_divider = np.full((10, data_3d.shape[1]*4+30), 0)
         else:
-            h_divider = np.full((data_3d.shape[1], 10), 75)
+            h_divider = np.full((data_3d.shape[0], 10), 75)
             v_divider = np.full((10, data_3d.shape[1]*4+30), 75)
 
         output = v_divider
 
-        for data in data_3d:
+        h_stack = np.hstack((data_3d[:, :, 0], h_divider,
+                             data_3d[:, :, 1], h_divider,
+                             data_3d[:, :, 2], h_divider,
+                             data_3d[:, :, 3]))
+        v_stack = np.vstack((h_stack, v_divider))
 
-            h_stack = np.hstack((data[:, :, 0], h_divider,
-                                 data[:, :, 1], h_divider,
-                                 data[:, :, 2], h_divider,
-                                 data[:, :, 3]))
+        output = np.vstack((output, v_stack))
 
-            v_stack = np.vstack((h_stack, v_divider))
-
-            output = np.vstack((output, v_stack))
-
-        self.move_img = np.sum(data.astype(np.float32), axis=2)
+        self.move_img = np.sum(data_3d.astype(np.float32), axis=2)
         self.move_img = cv2.convertScaleAbs(self.move_img, alpha = 255.0/400.0, beta=0.0).astype(np.uint8)
 
         self.output = cv2.convertScaleAbs(output, alpha=2.55, beta=0.0)
+        cv2.putText(self.output, str(transition.reward),(10,25), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,50), 1)
+
         self.vis_im.set_data(output)
         self.subscriber = rospy.Subscriber("/move_base/NeuroLocalPlannerWrapper/transition", Transition, self.callback, queue_size=1)
 
