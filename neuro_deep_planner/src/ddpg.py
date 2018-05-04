@@ -81,6 +81,7 @@ class DDPG:
         self.graph = self.session.graph
 
         with self.graph.as_default():
+            #tf.set_random_seed(1)
 
             # View the state batches
             self.visualize_input = VISUALIZE_BUFFER
@@ -217,6 +218,34 @@ class DDPG:
 
         self.data_manager.check_for_enqueue()
 
+    def normalize_action(self, raw_action, action_bounds):
+        action = np.zeros_like(raw_action)
+        for i, x in enumerate(raw_action):
+            mean = 0.5*(action_bounds[i][0] + action_bounds[i][1])
+            half_range = 0.5*(-action_bounds[i][0] + action_bounds[i][1])
+            action[i] = float(x - mean)/half_range
+#        print("normalize_action")
+#        print("raw_action", raw_action)
+#        print("action", action)
+        return action
+
+    def recover_action(self, action, action_bounds):
+        raw_action = np.zeros_like(action)
+        for i, x in enumerate(action):
+            mean = 0.5*(action_bounds[i][0] + action_bounds[i][1])
+            half_range = 0.5*(-action_bounds[i][0] + action_bounds[i][1])
+            raw_action[i] = x*half_range + mean
+#        print("recover_action")
+#        print("action", action)
+#        print("raw_action", raw_action)
+        return raw_action
+
+    def clip_action(self, action, action_bounds):
+        clipped_action = np.zeros_like(action)
+        for i, x in enumerate(action):
+            clipped_action[i] = np.clip(x, action_bounds[i][0], action_bounds[i][1])
+        return clipped_action
+
     def get_action(self, state):
 
         # normalize the state
@@ -226,6 +255,9 @@ class DDPG:
         # Get the action
         self.action = self.actor_network.get_action(state)
 
+        print("normalized action A", self.action)
+#        self.action = self.recover_action(self.action, ACTION_BOUNDS)
+
         print("self.noise_flag", self.noise_flag)
         print("self.training_step", self.training_step)
         print("action A", self.action)
@@ -233,21 +265,24 @@ class DDPG:
         # Are we using noise?
         if self.noise_flag:
             # scale noise down to 0 at training step 3000000
-            freq_mod = int(1 + 8*(1 - np.exp(-2e-5*self.training_step)))
-            noise_factor = np.exp(-5e-5*self.training_step)
+            freq_mod = int(1 + 8*(1 - np.exp(-5e-6*self.training_step)))
+            noise_factor =max(0.4, np.exp(-5e-6*self.training_step))
             print("freq_mod: {}, noise_factor: {}".format(freq_mod, noise_factor))
             if self.training_step < MAX_NOISE_STEP and ((self.training_step)%freq_mod==0):
             #if self.training_step < MAX_NOISE_STEP:
                 #self.action += (MAX_NOISE_STEP - self.training_step) / MAX_NOISE_STEP * self.exploration_noise.noise()
                 #self.action += np.exp(-1e-5*self.training_step) * self.exploration_noise.noise()
-                self.action += noise_factor * self.exploration_noise.noise()
+                noise = noise_factor * self.exploration_noise.noise()
+                print("noise", noise)
+                self.action += noise
                 print("action B", self.action)
             # if action value lies outside of action bounds, rescale the action vector
             if self.action[0] < A0_BOUNDS[0] or self.action[0] > A0_BOUNDS[1]:
                 self.action *= np.fabs(A0_BOUNDS[0]/self.action[0])
             if self.action[1] < A0_BOUNDS[0] or self.action[1] > A0_BOUNDS[1]:
                 self.action *= np.fabs(A1_BOUNDS[0]/self.action[1])
-
+#            self.action = self.clip_action(self.action, ACTION_BOUNDS)
+#            print("action C", self.action)
         # Life q value output for this action and state
         self.print_q_value(state, self.action)
 
@@ -273,6 +308,7 @@ class DDPG:
         # Safe old state and old action for next experience
         self.old_state = state
         self.old_action = self.action
+        #self.old_action = self.normalize_action(self.action, ACTION_BOUNDS)
 
     def print_q_value(self, state, action):
 
