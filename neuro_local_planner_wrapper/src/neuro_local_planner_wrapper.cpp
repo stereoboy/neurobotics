@@ -295,6 +295,7 @@ namespace neuro_local_planner_wrapper
         {
             ROS_ERROR("[failed to transform current pose to map frame to check goal position : %s", ex.what());
         }
+
         double dist = sqrt(    pow((current_pose_to_goal_position.pose.position.x - goal_position.pose.position.x), 2.0)
                             +   pow((current_pose_to_goal_position.pose.position.y - goal_position.pose.position.y), 2.0));
 
@@ -304,10 +305,6 @@ namespace neuro_local_planner_wrapper
             double current_pose_yaw = tf::getYaw(current_pose_to_goal_position.pose.orientation);
             double goal_yaw = tf::getYaw(goal_position.pose.orientation);
             condition &= isSameDirection("goal", current_pose_yaw, goal_yaw);
-            if (condition)
-            {
-                ROS_ERROR("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-            }
         }
         // Check if the robot has reached the goal
         if(condition)
@@ -513,6 +510,14 @@ namespace neuro_local_planner_wrapper
                 bool          buffer_clear = false;
                 unsigned char is_episode_finished = 0;
 
+                // clear costmap/set all pixel gray
+                std::vector<int8_t> data(customized_costmap_.info.width*customized_costmap_.info.height,50);
+                customized_costmap_.data = data;
+
+                // to_delete: ------
+                customized_costmap_.header.stamp = laser_scan.header.stamp;
+
+
                 if (   isCrashed(reward)
                     || isTimeOut(reward)
                     || isGoalInvisible(reward))
@@ -557,16 +562,14 @@ namespace neuro_local_planner_wrapper
                     goal_invisible_count = 0;
                     clock_counter = 0;
                 }
+                else{
+                    // calculated sub goal
+                    processSubGoal(reward);
 
-                // clear costmap/set all pixel gray
-                std::vector<int8_t> data(customized_costmap_.info.width*customized_costmap_.info.height,50);
-                customized_costmap_.data = data;
-
-                // to_delete: ------
-                customized_costmap_.header.stamp = laser_scan.header.stamp;
-
-                // calculated sub goal
-                processSubGoal(reward);
+                    // reset timer
+                    if (reward > 0.0)
+                        start_time_ = ros::Time::now().toSec();
+                }
 
                 // add global plan as white pixel with some gradient to indicate its direction
                 addGlobalPlan();
@@ -907,7 +910,7 @@ namespace neuro_local_planner_wrapper
     bool NeuroLocalPlannerWrapper::isSameDirection(std::string label, double yaw1, double yaw2)
     {
         double yaw_diff = fabs(yaw1 - yaw2);
-        ROS_ERROR("### %s yaw diff = %f (%f - %f)", label.c_str(), yaw_diff, yaw1, yaw2);
+        //ROS_ERROR("### %s yaw diff = %f (%f - %f)", label.c_str(), yaw_diff, yaw1, yaw2);
         return ((yaw_diff < goalRotationTolerance) || (yaw_diff > 2*3.14 - goalRotationTolerance)) ;
     }
 };
