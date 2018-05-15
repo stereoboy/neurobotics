@@ -328,6 +328,22 @@ Visualization Manager:
           Value: false
         robot_2/odom:
           Value: false
+        robot_3/base_footprint:
+          Value: true
+        robot_3/base_laser_link:
+          Value: true
+        robot_3/base_link:
+          Value: true
+        robot_3/odom:
+          Value: true
+        robot_4/base_footprint:
+          Value: true
+        robot_4/base_laser_link:
+          Value: true
+        robot_4/base_link:
+          Value: true
+        robot_4/odom:
+          Value: true
         wheel_left_link:
           Value: false
         wheel_right_link:
@@ -780,6 +796,22 @@ Visualization Manager:
       Unreliable: false
       Use Timestamp: false
       Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /dynamic_obstacle_marker_3
+      Name: Marker
+      Namespaces:
+        my_namespace: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /dynamic_obstacle_marker_4
+      Name: Marker
+      Namespaces:
+        my_namespace: true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 255; 255; 255
@@ -816,10 +848,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.905202985
+      Pitch: 1.07020247
       Target Frame: base_link
       Value: Orbit (rviz)
-      Yaw: 5.20005989
+      Yaw: 6.2800622
     Saved: ~
 Window Geometry:
   Displays:
@@ -837,5 +869,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1680
-  X: 65
-  Y: 24
+  X: 358
+  Y: 559

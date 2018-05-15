@@ -109,8 +109,7 @@ private:
     std::vector<StageRobot const *> robotmodels_;
 
     // Publishers for the dynamic obstacle markers
-    ros::Publisher vis_pub_1;
-    ros::Publisher vis_pub_2;
+    std::vector<ros::Publisher> vis_pubs;
     ros::Publisher vel_pub_;
 
     // Used to remember initial poses for soft reset
@@ -289,8 +288,13 @@ StageNode::cmdvelReceived(int idx, const boost::shared_ptr<geometry_msgs::Twist 
                                         msg->linear.y,
                                         msg->angular.z);
     // TODO
-     this->positionmodels[1]->SetSpeed(0.2, 0.0, 0.2);
-     this->positionmodels[2]->SetSpeed(-0.3, 0.0, -0.3);
+    for (size_t r = 1; r < this->positionmodels.size(); r++)
+    {
+        if (r%2)
+            this->positionmodels[r]->SetSpeed(0.2, 0.0, 0.2);
+        else
+            this->positionmodels[r]->SetSpeed(-0.3, 0.0, -0.3);
+    }
 
     this->base_last_cmd = this->sim_time;
 }
@@ -383,8 +387,15 @@ StageNode::SubscribeModels()
 {
     n_.setParam("/use_sim_time", true);
 
-    vis_pub_1 = n_.advertise<visualization_msgs::Marker>( "dynamic_obstacle_marker_1", 0 );
-    vis_pub_2 = n_.advertise<visualization_msgs::Marker>( "dynamic_obstacle_marker_2", 0 );
+    static char buf[100];
+    for (size_t r = 0; r < this->positionmodels.size(); r++)
+    {
+        snprintf(buf, sizeof(buf), "dynamic_obstacle_marker_%u", (int)r);
+        ROS_ERROR("%s", buf);
+        vis_pubs.push_back(n_.advertise<visualization_msgs::Marker>(buf, 0));
+    }
+
+
     vel_pub_ = n_.advertise<visualization_msgs::Marker>( "velocity_command", 0 );
 
     for (size_t r = 0; r < this->positionmodels.size(); r++)
@@ -487,15 +498,6 @@ StageNode::WorldCallback()
     marker.id = 0;
     marker.type = visualization_msgs::Marker::CUBE;
     marker.action = visualization_msgs::Marker::ADD;
-    marker.pose.position.x = this->positionmodels[1]->GetGlobalPose().x;
-    marker.pose.position.y = this->positionmodels[1]->GetGlobalPose().y;
-    marker.pose.position.z = 0.125;
-    tf::Quaternion quaternion;
-    quaternion.setRPY(0.0, 0.0, this->positionmodels[1]->GetGlobalPose().a);
-    marker.pose.orientation.x = quaternion.getX();
-    marker.pose.orientation.y = quaternion.getY();
-    marker.pose.orientation.z = quaternion.getZ();
-    marker.pose.orientation.w = quaternion.getW();
     marker.scale.x = 0.22;
     marker.scale.y = 0.22;
     marker.scale.z = 0.5;
@@ -504,19 +506,15 @@ StageNode::WorldCallback()
     marker.color.g = 0.15;
     marker.color.b = 0.15;
 
-    vis_pub_1.publish(marker);
+    for (size_t r = 1; r < this->positionmodels.size(); r++)
+    {
+        marker.pose.position.x = this->positionmodels[r]->GetGlobalPose().x;
+        marker.pose.position.y = this->positionmodels[r]->GetGlobalPose().y;
+        marker.pose.position.z = 0.125;
+        marker.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0.0, 0.0, this->positionmodels[r]->GetGlobalPose().a);;
 
-    // Now the second obstacle
-    marker.pose.position.x = this->positionmodels[2]->GetGlobalPose().x;
-    marker.pose.position.y = this->positionmodels[2]->GetGlobalPose().y;
-    marker.pose.position.z = 0.125;
-    quaternion.setRPY(0.0, 0.0, this->positionmodels[2]->GetGlobalPose().a);
-    marker.pose.orientation.x = quaternion.getX();
-    marker.pose.orientation.y = quaternion.getY();
-    marker.pose.orientation.z = quaternion.getZ();
-    marker.pose.orientation.w = quaternion.getW();
-
-    vis_pub_2.publish(marker);
+        vis_pubs[r].publish(marker);
+    }
 
     // Publish a marker for visualization of the velocity commands
     visualization_msgs::Marker marker_1;
