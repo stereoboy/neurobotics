@@ -27,6 +27,7 @@ class ROSHandler:
                                                 self.input_callback)
         self.__sub_setting = rospy.Subscriber("/noise_flag", Bool, self.setting_callback)
         self.__pub = rospy.Publisher("neuro_deep_planner/action", Twist, queue_size=10)
+        self.__pub2 = rospy.Publisher("/ue4/robot/ctrl/move", Twist, queue_size=10)
 
         self.__new_msg_flag = False
         self.__new_setting_flag = False
@@ -78,6 +79,7 @@ class ROSHandler:
 
         # Send the action back
         self.__pub.publish(vel_cmd)
+        self.__pub2.publish(Twist(Vector3(0.02*action[0], 0, 0), Vector3(0, 0, action[1])))
 
     def new_msg(self):
 
