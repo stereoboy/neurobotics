@@ -13,9 +13,12 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
 )
 
+find_package(OpenCV REQUIRED)
+
 include_directories(
     include
     ${catkin_INCLUDE_DIRS}
+    ${OpenCV_INCLUDE_DIRS}
     )
 
 ## Generate messages in the 'msg' folder
@@ -45,7 +48,8 @@ catkin_package(
   LIBRARIES neuro_local_planner_wrapper
   CATKIN_DEPENDS base_local_planner costmap_2d nav_core nav_msgs pluginlib roscpp std_msgs tf message_runtime
   DEPENDS system_lib
+  DEPENDS OpenCV
 )
 
 add_library(neuro_local_planner_wrapper src/neuro_local_planner_wrapper.cpp)
-target_link_libraries(neuro_local_planner_wrapper ${catkin_LIBRARIES})
+target_link_libraries(neuro_local_planner_wrapper ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})

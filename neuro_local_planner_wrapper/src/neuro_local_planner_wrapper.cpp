@@ -1,17 +1,41 @@
 #include <neuro_local_planner_wrapper/neuro_local_planner_wrapper.h>
 #include <pluginlib/class_list_macros.h>
 
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+
 // Register this planner as a BaseLocalPlanner plugin
 PLUGINLIB_EXPORT_CLASS(neuro_local_planner_wrapper::NeuroLocalPlannerWrapper, nav_core::BaseLocalPlanner)
 
 double goalTolerance = 0.2;
 double goalRotationTolerance = 0.5; // in radians
 
+double direction_line_len = 15;
+
 int threshold_crash = 170;
 double subgoal_reward = 0.2;
 
 namespace neuro_local_planner_wrapper
 {
+
+    void DrawArrow(cv::Mat img, cv::Point center, double yaw, cv::Scalar color)
+    {
+        cv::Point direction = center + cv::Point(cos(yaw)*direction_line_len, sin(yaw)*direction_line_len);
+        cv::Point left = center + cv::Point(cos(yaw + M_PI/2.0)*direction_line_len/4, sin(yaw + M_PI/2.9)*direction_line_len/4);
+        cv::Point right = center + cv::Point(cos(yaw - M_PI/2.0)*direction_line_len/4, sin(yaw - M_PI/2.9)*direction_line_len/4);
+        cv::Point points[3];
+        points[0] = direction;
+        points[1] = left;
+        points[2] = right;
+        const cv::Point* ppts[1] = {points};
+        int npts[] = {3};
+
+        //cv::rectangle(rawData, center, direction, cv::Scalar(75));
+        //cv::ellipse(rawData, center, cv::Size(direction_line_len, direction_line_len/6), yaw*180.0/M_PI, -90, 90, cv::Scalar(75), -1);
+        //cv::arrowedLine(rawData, center, direction, cv::Scalar(75), 2, 8, 0, 1.0);
+        cv::fillPoly(img, ppts, npts, 1, color);
+    }
+
     // Constructor
     NeuroLocalPlannerWrapper::NeuroLocalPlannerWrapper() : initialized_(false), rotation_control(true),
                                                            blp_loader_("nav_core", "nav_core::BaseLocalPlanner") {}
@@ -184,7 +208,8 @@ namespace neuro_local_planner_wrapper
         customized_costmap_ = nav_msgs::OccupancyGrid();
 
         // header
-        customized_costmap_.header.frame_id = "/base_footprint";
+        //customized_costmap_.header.frame_id = "/base_footprint";
+        customized_costmap_.header.frame_id = "odom";
         customized_costmap_.header.stamp = ros::Time::now();
         customized_costmap_.header.seq = 0;
 
@@ -514,9 +539,30 @@ namespace neuro_local_planner_wrapper
                 std::vector<int8_t> data(customized_costmap_.info.width*customized_costmap_.info.height,50);
                 customized_costmap_.data = data;
 
+
                 // to_delete: ------
                 customized_costmap_.header.stamp = laser_scan.header.stamp;
 
+                {
+                    double roll, pitch, yaw;
+                    costmap_ros_->getRobotPose(current_pose_);
+                    current_pose_.getBasis().getRPY(roll, pitch, yaw);
+
+                    // Draw Center
+                    cv::Mat rawData(cv::Size(customized_costmap_.info.width, customized_costmap_.info.height), CV_8UC1, (void*)&(customized_costmap_.data[0]));
+
+                    cv::Point center(customized_costmap_.info.width/2, customized_costmap_.info.height/2);
+
+                    DrawArrow(rawData, center, yaw, cv::Scalar(75));
+
+                    double resolution = costmap_->getResolution();
+                    double wx, wy;
+                    costmap_->mapToWorld(0, 0, wx, wy);
+                    customized_costmap_.info.origin.position.x = wx - resolution / 2;
+                    customized_costmap_.info.origin.position.y = wy - resolution / 2;
+                    customized_costmap_.info.origin.position.z = 0.01;
+                    customized_costmap_.info.origin.orientation.w = 1.0;
+                }
 
                 if (   isCrashed(reward)
                     || isTimeOut(reward)
@@ -651,9 +697,9 @@ namespace neuro_local_planner_wrapper
         double x_position_laser_scan_frame;
         double y_position_laser_scan_frame;
 
-        // x and y position of laser scan point in robot base frame
-        double x_position_robot_base_frame;
-        double y_position_robot_base_frame;
+//        // x and y position of laser scan point in robot base frame
+//        double x_position_robot_base_frame;
+//        double y_position_robot_base_frame;
 
         // iteration over all laser scan points
         for(unsigned int i = 0; i < laser_scan.ranges.size(); i++)
@@ -667,23 +713,14 @@ namespace neuro_local_planner_wrapper
                 y_position_laser_scan_frame = laser_scan.ranges.at(i) * sin(laser_scan.angle_min
                                                                             + i * laser_scan.angle_increment);
 
-                // translation
-                x_position_robot_base_frame = x_position_laser_scan_frame + stamped_transform.getOrigin().getX();
-                y_position_robot_base_frame = y_position_laser_scan_frame + stamped_transform.getOrigin().getY();
-
-                // rotation
-                double roll, pitch, yaw;
-                stamped_transform.getBasis().getRPY(roll, pitch, yaw);
-                double x_temp = x_position_robot_base_frame;
-                double y_temp = y_position_robot_base_frame;
-                x_position_robot_base_frame = cos(yaw)*x_temp - sin(yaw)*y_temp;
-                y_position_robot_base_frame = sin(yaw)*x_temp + cos(yaw)*y_temp;
+                tf::Point p(x_position_laser_scan_frame, y_position_laser_scan_frame, 0.0);
+                p = stamped_transform(p);
 
                 // transformation to costmap coordinates
                 int x, y;
-                x = (int)round(((x_position_robot_base_frame - customized_costmap_.info.origin.position.x)
+                x = (int)round(((p.x() - customized_costmap_.info.origin.position.x)
                                 / costmap_->getSizeInMetersX())*customized_costmap_.info.width-0.5);
-                y = (int)round(((y_position_robot_base_frame - customized_costmap_.info.origin.position.y)
+                y = (int)round(((p.y() - customized_costmap_.info.origin.position.y)
                                 / costmap_->getSizeInMetersY())*customized_costmap_.info.height-0.5);
 
 
@@ -831,24 +868,42 @@ namespace neuro_local_planner_wrapper
                         / costmap_->getSizeInMetersY()) * customized_costmap_.info.height - 0.5);
 
         int pixel_to_blob_center;
-        for (int x = (int)(goal_x - goal_tolerance_in_pixel); x <=
-                goal_x + goal_tolerance_in_pixel; x++)
+//        for (int x = (int)(goal_x - goal_tolerance_in_pixel); x <=
+//                goal_x + goal_tolerance_in_pixel; x++)
+//        {
+//            for (int y = (int)(goal_y - goal_tolerance_in_pixel); y <=
+//                    goal_y + goal_tolerance_in_pixel; y++)
+//            {
+//                pixel_to_blob_center = (int)round(sqrt(pow((goal_x - x), 2.0)
+//                                                       + pow((goal_y  - y), 2.0)));
+//
+//                if ((x >= 0) && (y >= 0) && (x < customized_costmap_.info.width) && (y < customized_costmap_.info.height))
+//                {
+//                    if (pixel_to_blob_center <= goal_tolerance_in_pixel)
+//                    {
+//                        customized_costmap_.data[x + y*customized_costmap_.info.width] = 0;
+//                    }
+//                }
+//            }
+//        }
+        geometry_msgs::PoseStamped current_pose;
+        tf::poseStampedTFToMsg(current_pose_, current_pose);
+        geometry_msgs::PoseStamped goal_pose_to_map;
+        try
         {
-            for (int y = (int)(goal_y - goal_tolerance_in_pixel); y <=
-                    goal_y + goal_tolerance_in_pixel; y++)
-            {
-                pixel_to_blob_center = (int)round(sqrt(pow((goal_x - x), 2.0)
-                                                       + pow((goal_y  - y), 2.0)));
-
-                if ((x >= 0) && (y >= 0) && (x < customized_costmap_.info.width) && (y < customized_costmap_.info.height))
-                {
-                    if (pixel_to_blob_center <= goal_tolerance_in_pixel)
-                    {
-                        customized_costmap_.data[x + y*customized_costmap_.info.width] = 0;
-                    }
-                }
-            }
+            tf_->waitForTransform(  customized_costmap_.header.frame_id, goal_position.header.frame_id,
+                                    ros::Time(0), ros::Duration(2.0));
+            tf_->transformPose(customized_costmap_.header.frame_id, goal_position, goal_pose_to_map);
         }
+        catch (tf::TransformException ex)
+        {
+            ROS_ERROR("%s", ex.what());
+        }
+        cv::Mat rawData(cv::Size(customized_costmap_.info.width, customized_costmap_.info.height), CV_8UC1, (void*)&(customized_costmap_.data[0]));
+        double goal_yaw = tf::getYaw(goal_pose_to_map.pose.orientation);
+        cv::Point goal_to_map(goal_x, goal_y);
+
+        DrawArrow(rawData, goal_to_map, goal_yaw, cv::Scalar(0));
 #endif
     }
 
