@@ -18,11 +18,21 @@ DATA_PATH = os.path.expanduser('~') + '/rl_nav_data'
 # path to tensorboard data
 PLOT_PATH = DATA_PATH + '/plotting_results'
 
+FLAGS = tf.flags.FLAGS
+tf.flags.DEFINE_string("mode", "train", "mode: train or eval")
 
 def main():
 
     # Initialize the ANNs
     agent = DDPG()
+
+    print("###################################################################")
+    print("mode: {}".format(FLAGS.mode))
+    print("###################################################################")
+    if FLAGS.mode == 'eval':
+        agent.noise_flag = False
+    else:
+        agent.noise_flag = True
 
     rospy.init_node("neuro_deep_planner", anonymous=False)
 
@@ -90,7 +100,10 @@ def main():
 
             else:
                 # Train the network!
-                agent.train()
+                if FLAGS.mode == 'train':
+                    agent.train()
+                else:
+                    pass
 
 
 if __name__ == '__main__':
