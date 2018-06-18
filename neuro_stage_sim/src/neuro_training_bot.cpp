@@ -14,11 +14,16 @@
 #include <boost/random.hpp>
 #include <boost/random/normal_distribution.hpp>
 
+#include <move_base_msgs/MoveBaseAction.h>
+#include <actionlib/client/simple_action_client.h>
+#include <actionlib/client/terminal_state.h>
+
 bool yaw_constraint_flag = false;
 
 // Publisher and subscribers
 ros::Publisher stage_pub;
-ros::Publisher move_base_goal_pub;
+
+actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> *ac_;
 
 // Uncomment when using real amcl localization
 // ros::Publisher move_base_pose_pub;
@@ -114,7 +119,10 @@ void publishNewGoal()
     pose_stamped.pose.orientation.z = 1.0;
     pose_stamped.pose.orientation.w = o;
     pose_stamped.header.frame_id = "map";
-    move_base_goal_pub.publish(pose_stamped);
+    pose_stamped.header.stamp = ros::Time::now();
+    move_base_msgs::MoveBaseGoal goal;
+    goal.target_pose = pose_stamped;
+    ac_->sendGoal(goal);
 }
 
 void publishNewPose()
@@ -282,14 +290,15 @@ int main(int argc, char **argv)
 
     // Publishers
     stage_pub = n.advertise<geometry_msgs::Pose>("neuro_stage_ros/set_pose", 1);
-    move_base_goal_pub = n.advertise<geometry_msgs::PoseStamped>("move_base_simple/goal", 1);
 
     // Uncomment when using real amcl localization
     //move_base_pose_pub = n.advertise<geometry_msgs::PoseWithCovarianceStamped>("initialpose", 1);
 
     // Make sure that the global planner is aware of the new position
-    ros::Rate r(0.1);
-    r.sleep();
+    actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> ac("/move_base", true);
+    ac_ = &ac;
+    ac.waitForServer(); //will wait for infinite time
+    ROS_INFO("neuro_training_bot: Initialization done");
 
     // Send new position to stage
     publishNewGoal();
