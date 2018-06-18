@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(neuro_stage_sim)
 
-find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs genmsg nav_core pluginlib)
+find_package(catkin REQUIRED COMPONENTS roscpp rospy std_msgs genmsg nav_core pluginlib actionlib_msgs actionlib)
 
 include_directories(include ${catkin_INCLUDE_DIRS})
 
