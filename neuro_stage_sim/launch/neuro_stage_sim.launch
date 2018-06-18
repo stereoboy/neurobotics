@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <!--
   Turtlebot navigation simulation:
   - stage
@@ -19,6 +20,7 @@
   <arg name="initial_pose_y" default="2.0"/>
   <arg name="initial_pose_a" default="0.0"/>
 
+  <param name="/robot_type" value="holonomic"/>
   <param name="/use_sim_time" value="true"/>
 
   <!--  ******************** Stage ********************  -->

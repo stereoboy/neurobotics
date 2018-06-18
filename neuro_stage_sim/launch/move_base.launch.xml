@@ -11,12 +11,11 @@
     <rosparam file="$(find neuro_stage_sim)/param/costmap_common_params.yaml" command="load" ns="local_costmap" />
     <rosparam file="$(find neuro_stage_sim)/param/local_costmap_params.yaml" command="load" />
     <rosparam file="$(find neuro_stage_sim)/param/global_costmap_params.yaml" command="load" />
-    <rosparam file="$(find neuro_stage_sim)/param/dwa_local_planner_params.yaml" command="load" />
+    <rosparam file="$(find neuro_stage_sim)/param/neuro_local_planner_params.yaml" command="load" />
     <rosparam file="$(find neuro_stage_sim)/param/move_base_params.yaml" command="load" />
     <rosparam file="$(find neuro_stage_sim)/param/global_planner_params.yaml" command="load" />
     <rosparam file="$(find neuro_stage_sim)/param/navfn_global_planner_params.yaml" command="load" />
 
-    <remap from="cmd_vel" to="navigation_velocity_smoother/raw_cmd_vel"/>
     <remap from="odom" to="$(arg odom_topic)"/>
     <remap from="scan" to="$(arg laser_topic)"/>
   </node>

@@ -171,7 +171,7 @@ namespace neuro_local_planner_wrapper
             double start_time_;
 
             // For x/yaw control
-            bool rotation_control;
+            bool yaw_constraint_flag_;
 
             // For plotting
             int temp_time_;
@@ -183,6 +183,10 @@ namespace neuro_local_planner_wrapper
             int file_counter; // one file for 1000 entries
 
             long long clock_counter;
+
+            double xy_goal_tolerance_;
+            double yaw_goal_tolerance_;
+
     };
 };
 #endif

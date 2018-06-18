@@ -21,10 +21,20 @@ PLOT_PATH = DATA_PATH + '/plotting_results'
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_string("mode", "train", "mode: train or eval")
 
+action_bounds_dict = {
+    'holonomic': [[-0.4, 0.4], [-0.4, 0.4]],
+    'nonholonomic':  [[-0.4, 0.4], [-0.1, 0.1]],
+    }
+
 def main():
 
     # Initialize the ANNs
-    agent = DDPG()
+    rospy.init_node("neuro_deep_planner", anonymous=False)
+
+    ros_handler = ROSHandler()
+    ros_handler.on_policy = False
+
+    agent = DDPG(action_bounds_dict[ros_handler.robot_type])
 
     print("###################################################################")
     print("mode: {}".format(FLAGS.mode))
@@ -34,10 +44,8 @@ def main():
     else:
         agent.noise_flag = True
 
-    rospy.init_node("neuro_deep_planner", anonymous=False)
-
-    ros_handler = ROSHandler()
-    ros_handler.on_policy = False
+    #ACTION_BOUNDS = [[-0.4, 0.4], [-0.4, 0.4]]
+    #ACTION_BOUNDS = [[-0.4, 0.4], [-0.1, 0.1]]
 
     # For plotting
     currently_plotting = False

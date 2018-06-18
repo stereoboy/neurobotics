@@ -7,9 +7,6 @@
 // Register this planner as a BaseLocalPlanner plugin
 PLUGINLIB_EXPORT_CLASS(neuro_local_planner_wrapper::NeuroLocalPlannerWrapper, nav_core::BaseLocalPlanner)
 
-double goalTolerance = 0.2;
-double goalRotationTolerance = 0.5; // in radians
-
 double direction_line_len = 15;
 
 int threshold_crash = 170;
@@ -37,7 +34,7 @@ namespace neuro_local_planner_wrapper
     }
 
     // Constructor
-    NeuroLocalPlannerWrapper::NeuroLocalPlannerWrapper() : initialized_(false), rotation_control(true),
+    NeuroLocalPlannerWrapper::NeuroLocalPlannerWrapper() : initialized_(false), yaw_constraint_flag_(false),
                                                            blp_loader_("nav_core", "nav_core::BaseLocalPlanner") {}
 
     // Destructor
@@ -59,10 +56,12 @@ namespace neuro_local_planner_wrapper
             // TODO: remove
             // debug_marker_pub_ = private_nh.advertise<visualization_msgs::Marker>( "goal_point", 0 );
 
-            // Publishers & Subscribers
-            g_plan_pub_ = private_nh.advertise<nav_msgs::Path>("global_plan", 1);
-            l_plan_pub_ = private_nh.advertise<nav_msgs::Path>("local_plan", 1);
+            // Parameters
+            std::string robot_type_str;
+            private_nh.param("/robot_type", robot_type_str, std::string("holonomic"));
+            yaw_constraint_flag_ = (robot_type_str.compare(std::string("nonholonomic")) == 0);
 
+            // Publishers & Subscribers
             state_pub_ = private_nh.advertise<std_msgs::Bool>("new_round", 1);
 
             laser_scan_sub_ = private_nh.subscribe("/scan", 1000, &NeuroLocalPlannerWrapper::buildStateRepresentation,
@@ -139,6 +138,14 @@ namespace neuro_local_planner_wrapper
             // We are now initialized
             initialized_ = true;
             clock_counter = 0;
+
+            private_nh.param("xy_goal_tolerance", xy_goal_tolerance_, 0.1);
+            private_nh.param("yaw_goal_tolerance", yaw_goal_tolerance_, 0.1);
+
+            ROS_INFO("xy_goal_tolerance: %f", xy_goal_tolerance_);
+            ROS_INFO("yaw_goal_tolerance: %f", yaw_goal_tolerance_);
+
+            ROS_ERROR("Initialization has been done.");
         }
         else
         {
@@ -324,9 +331,10 @@ namespace neuro_local_planner_wrapper
         double dist = sqrt(    pow((current_pose_to_goal_position.pose.position.x - goal_position.pose.position.x), 2.0)
                             +   pow((current_pose_to_goal_position.pose.position.y - goal_position.pose.position.y), 2.0));
 
-        bool condition  = dist < goalTolerance;
-        if (rotation_control && condition)
+        bool condition  = dist < xy_goal_tolerance_;
+        if (yaw_constraint_flag_ && condition)
         {
+            ROS_ERROR("pass xy_goal_tolerance");
             double current_pose_yaw = tf::getYaw(current_pose_to_goal_position.pose.orientation);
             double goal_yaw = tf::getYaw(goal_position.pose.orientation);
             condition &= isSameDirection("goal", current_pose_yaw, goal_yaw);
@@ -385,8 +393,8 @@ namespace neuro_local_planner_wrapper
             double dist = sqrt(     pow((   current_pose_to_goal_position.pose.position.x - subgoal_position.pose.position.x), 2.0)
                                +    pow((   current_pose_to_goal_position.pose.position.y - subgoal_position.pose.position.y), 2.0));
 
-            bool condition  = dist < goalTolerance;
-            if (rotation_control && condition)
+            bool condition  = dist < xy_goal_tolerance_;
+            if (yaw_constraint_flag_ && condition)
             {
                 double current_pose_yaw = tf::getYaw(current_pose_to_goal_position.pose.orientation);
                 double goal_yaw = tf::getYaw(subgoal_position.pose.orientation);
@@ -799,7 +807,7 @@ namespace neuro_local_planner_wrapper
         }*/
 
         // add global blob
-        int goal_tolerance_in_pixel = (int)round(goalTolerance / (costmap_->getSizeInMetersX()
+        int goal_tolerance_in_pixel = (int)round(xy_goal_tolerance_ / (costmap_->getSizeInMetersX()
                                                                   / costmap_->getSizeInCellsX()));
 
 #if 0
@@ -966,6 +974,6 @@ namespace neuro_local_planner_wrapper
     {
         double yaw_diff = fabs(yaw1 - yaw2);
         //ROS_ERROR("### %s yaw diff = %f (%f - %f)", label.c_str(), yaw_diff, yaw1, yaw2);
-        return ((yaw_diff < goalRotationTolerance) || (yaw_diff > 2*3.14 - goalRotationTolerance)) ;
+        return ((yaw_diff < yaw_goal_tolerance_) || (yaw_diff > 2*3.14 - yaw_goal_tolerance_)) ;
     }
 };
