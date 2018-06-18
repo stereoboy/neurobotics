@@ -26,11 +26,6 @@ MU = 0.0
 THETA = 0.15
 SIGMA = 0.20
 
-# Action boundaries
-A0_BOUNDS = [-0.4, 0.4]
-A1_BOUNDS = [-0.1, 0.1]
-ACTION_BOUNDS = [[-0.4, 0.4], [-0.4, 0.4]]
-
 # Should we load a saved net
 PRE_TRAINED_NETS = False
 
@@ -66,7 +61,7 @@ MAX_NOISE_STEP = 3000000
 
 class DDPG:
 
-    def __init__(self):
+    def __init__(self, action_bounds):
 
         # Make sure all the directories exist
         if not tf.gfile.Exists(TFLOG_PATH):
@@ -75,6 +70,9 @@ class DDPG:
             tf.gfile.MakeDirs(EXPERIENCE_PATH)
         if not tf.gfile.Exists(NET_SAVE_PATH):
             tf.gfile.MakeDirs(NET_SAVE_PATH)
+
+
+        self.action_bounds = action_bounds
 
         # Initialize our session
         self.session = tf.Session()
@@ -102,7 +100,7 @@ class DDPG:
             self.action = np.zeros(2, dtype='float')
 
             # Initialize the grad inverter object to keep the action bounds
-            self.grad_inv = GradInverter(A0_BOUNDS, A1_BOUNDS, self.session)
+            self.grad_inv = GradInverter(self.action_bounds[0], self.action_bounds[1], self.session)
 
             # Make sure the directory for the data files exists
             if not tf.gfile.Exists(DATA_PATH):
@@ -277,11 +275,11 @@ class DDPG:
                 self.action += noise
                 print("action B", self.action)
             # if action value lies outside of action bounds, rescale the action vector
-            if self.action[0] < A0_BOUNDS[0] or self.action[0] > A0_BOUNDS[1]:
-                self.action *= np.fabs(A0_BOUNDS[0]/self.action[0])
-            if self.action[1] < A0_BOUNDS[0] or self.action[1] > A0_BOUNDS[1]:
-                self.action *= np.fabs(A1_BOUNDS[0]/self.action[1])
-#            self.action = self.clip_action(self.action, ACTION_BOUNDS)
+#            if self.action[0] < A0_BOUNDS[0] or self.action[0] > A0_BOUNDS[1]:
+#                self.action[0] *= np.fabs(A0_BOUNDS[0]/self.action[0])
+#            if self.action[1] < A0_BOUNDS[0] or self.action[1] > A0_BOUNDS[1]:
+#                self.action[1] *= np.fabs(A1_BOUNDS[0]/self.action[1])
+            self.action = self.clip_action(self.action, self.action_bounds)
 #            print("action C", self.action)
         # Life q value output for this action and state
         self.print_q_value(state, self.action)

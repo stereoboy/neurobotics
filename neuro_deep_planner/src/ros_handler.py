@@ -23,6 +23,8 @@ class ROSHandler:
         self.reward = 0.0
         self.is_episode_finished = False
 
+        self.robot_type = rospy.get_param('/robot_type', 'holonomic')
+
         self.__sub_move_base = rospy.Subscriber("/move_base/NeuroLocalPlannerWrapper/transition", Transition,
                                                 self.input_callback)
         self.__sub_setting = rospy.Subscriber("/noise_flag", Bool, self.setting_callback)
@@ -74,8 +76,13 @@ class ROSHandler:
     def publish_action(self, action):
 
         # Generate msg output
-        #vel_cmd = Twist(Vector3(action[0], action[1], 0), Vector3(0, 0, 0))
-        vel_cmd = Twist(Vector3(action[0], 0, 0), Vector3(0, 0, action[1]))
+        if self.robot_type == 'holonomic':
+            vel_cmd = Twist(Vector3(action[0], action[1], 0), Vector3(0, 0, 0))
+        elif self.robot_type == 'nonholonomic':
+            vel_cmd = Twist(Vector3(action[0], 0, 0), Vector3(0, 0, action[1]))
+        else:
+            rospy.logerr("Wrong robot_type parameter")
+            sys.exit(-1)
 
         # Send the action back
         self.__pub.publish(vel_cmd)

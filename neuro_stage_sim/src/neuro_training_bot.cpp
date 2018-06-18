@@ -14,7 +14,7 @@
 #include <boost/random.hpp>
 #include <boost/random/normal_distribution.hpp>
 
-#define __ROTATION__
+bool yaw_constraint_flag = false;
 
 // Publisher and subscribers
 ros::Publisher stage_pub;
@@ -160,12 +160,13 @@ void publishNewPose()
     pose.position.z = 0.0;
     pose.position.x = new_pose_x = x;
     pose.position.y = new_pose_y = y;
-#if !defined(__ROTATION__)
-    pose.orientation.z = 1.0;
-    pose.orientation.w = o;
-#else
-    pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, yaw); // http://docs.ros.org/api/tf/html/c++/transform__datatypes_8h.html
-#endif
+    if (yaw_constraint_flag) {
+        pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, yaw); // http://docs.ros.org/api/tf/html/c++/transform__datatypes_8h.html
+    }
+    else {
+        pose.orientation.z = 1.0;
+        pose.orientation.w = o;
+    }
     stage_pub.publish(pose);
 }
 
@@ -247,6 +248,11 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "neuro_training_bot");
 
     ros::NodeHandle n;
+
+    // Parameters
+    std::string robot_type_str;
+    n.param("/robot_type", robot_type_str, std::string("holonomic"));
+    yaw_constraint_flag = (robot_type_str.compare(std::string("nonholonomic")) == 0);
 
     // Subscribers
     ros::Subscriber sub_planner = n.subscribe("/move_base/NeuroLocalPlannerWrapper/new_round", 1000, botCallback);
