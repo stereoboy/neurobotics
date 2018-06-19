@@ -12,9 +12,6 @@
     <rosparam file="$(find neuro_stage_sim)/param/local_costmap_params.yaml" command="load" />
     <rosparam file="$(find neuro_stage_sim)/param/global_costmap_params.yaml" command="load" />
     <rosparam file="$(find neuro_stage_sim)/param/neuro_local_planner_params.yaml" command="load" />
-    <!--
-    <rosparam file="$(find neuro_stage_sim)/param/dwa_local_planner_params.yaml" command="load" />
-    -->
     <rosparam file="$(find neuro_stage_sim)/param/move_base_params.yaml" command="load" />
     <rosparam file="$(find neuro_stage_sim)/param/global_planner_params.yaml" command="load" />
     <rosparam file="$(find neuro_stage_sim)/param/navfn_global_planner_params.yaml" command="load" />
