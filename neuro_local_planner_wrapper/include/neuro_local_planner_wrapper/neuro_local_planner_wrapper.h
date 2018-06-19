@@ -54,7 +54,11 @@ namespace neuro_local_planner_wrapper
         private:
 
             // Callback function for the subscriber to laser scan
-            void buildStateRepresentation(sensor_msgs::LaserScan laser_scan);
+            void cbLocalCostmap(nav_msgs::OccupancyGrid grid);
+
+            void cbLocalCostmapUpdate(map_msgs::OccupancyGridUpdate grid_update);
+
+            void buildStateRepresentation(std_msgs::Header header, std::vector<int8_t> costmap_data);
 
             bool isCrashed(double& reward);
 
@@ -95,9 +99,6 @@ namespace neuro_local_planner_wrapper
 
             // --- Publisher & Subscriber ---
 
-            // For visualisation, publishers of global and local plan
-            ros::Publisher g_plan_pub_, l_plan_pub_; // TODO: never used right?
-
             // Publisher to the stage_sim_bot after crash or reached goal
             ros::Publisher state_pub_;
 
@@ -108,6 +109,10 @@ namespace neuro_local_planner_wrapper
 
             // Subscribe to laser scan topic
             ros::Subscriber laser_scan_sub_;
+
+            // Subscribe to local_costmap topic
+            ros::Subscriber local_costmap_sub_;
+            ros::Subscriber local_costmap_update_sub_;
 
             // For visualisation, publisher for customized costmap
             ros::Publisher customized_costmap_pub_;
@@ -183,6 +188,8 @@ namespace neuro_local_planner_wrapper
             int file_counter; // one file for 1000 entries
 
             long long clock_counter;
+
+            char* cost_translation_table_ = NULL;
 
             double xy_goal_tolerance_;
             double yaw_goal_tolerance_;

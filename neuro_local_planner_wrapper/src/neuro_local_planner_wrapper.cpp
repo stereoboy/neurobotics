@@ -33,6 +33,27 @@ namespace neuro_local_planner_wrapper
         cv::fillPoly(img, ppts, npts, 1, color);
     }
 
+    void mapToWorld(costmap_2d::Costmap2D* costmap, unsigned int mx, unsigned int my, double& wx, double& wy) {
+        wx = costmap->getOriginX() + (mx + 0.5) * costmap->getResolution();
+        wy = costmap->getOriginY() + (my + 0.5) * costmap->getResolution();
+    }
+
+    bool worldToMap(costmap_2d::Costmap2D* costmap, double wx, double wy, unsigned int& mx, unsigned int& my) {
+        double origin_x = costmap->getOriginX(), origin_y = costmap->getOriginY();
+        double resolution = costmap->getResolution();
+
+        if (wx < origin_x || wy < origin_y)
+            return false;
+
+        mx = (int)((wx - origin_x) / resolution - 0.5);
+        my = (int)((wy - origin_y) / resolution - 0.5);
+
+        if (mx < costmap->getSizeInCellsX() && my < costmap->getSizeInCellsY())
+            return true;
+
+        return false;
+    }
+
     // Constructor
     NeuroLocalPlannerWrapper::NeuroLocalPlannerWrapper() : initialized_(false), yaw_constraint_flag_(false),
                                                            blp_loader_("nav_core", "nav_core::BaseLocalPlanner") {}
@@ -43,11 +64,11 @@ namespace neuro_local_planner_wrapper
         tc_.reset();
     }
 
-
     // Initialize the planner
     void NeuroLocalPlannerWrapper::initialize(std::string name, tf::TransformListener* tf,
                                          costmap_2d::Costmap2DROS* costmap_ros)
     {
+        ROS_WARN(">>>NeuroLocalPlannerWrapper::initialize()");
         // If we are not initialized do so
         if (!initialized_)
         {
@@ -64,8 +85,9 @@ namespace neuro_local_planner_wrapper
             // Publishers & Subscribers
             state_pub_ = private_nh.advertise<std_msgs::Bool>("new_round", 1);
 
-            laser_scan_sub_ = private_nh.subscribe("/scan", 1000, &NeuroLocalPlannerWrapper::buildStateRepresentation,
-                                                   this);
+            //laser_scan_sub_ = private_nh.subscribe("/scan", 1000, &NeuroLocalPlannerWrapper::buildStateRepresentation, this);
+            local_costmap_sub_ = private_nh.subscribe("/move_base/local_costmap/costmap", 1000, &NeuroLocalPlannerWrapper::cbLocalCostmap, this);
+            local_costmap_update_sub_ = private_nh.subscribe("/move_base/local_costmap/costmap_updates", 1000, &NeuroLocalPlannerWrapper::cbLocalCostmapUpdate, this);
 
             customized_costmap_pub_ = private_nh.advertise<nav_msgs::OccupancyGrid>("customized_costmap", 1);
 
@@ -73,10 +95,7 @@ namespace neuro_local_planner_wrapper
 
             action_pub_ = private_nh.advertise<geometry_msgs::Twist>("action", 1);
 
-            noise_flag_pub_ = private_nh.advertise<std_msgs::Bool>("/noise_flag", 1);
-
-            action_sub_ = private_nh.subscribe("/neuro_deep_planner/action", 1000,
-                                               &NeuroLocalPlannerWrapper::callbackAction, this);
+            action_sub_ = private_nh.subscribe("/neuro_deep_planner/action", 1000, &NeuroLocalPlannerWrapper::callbackAction, this);
 
             // Setup tf
             tf_ = tf;
@@ -138,6 +157,23 @@ namespace neuro_local_planner_wrapper
             // We are now initialized
             initialized_ = true;
             clock_counter = 0;
+            if (cost_translation_table_ == NULL)
+            {
+                cost_translation_table_ = new char[256];
+
+                // special values:
+                cost_translation_table_[0] = 0;  // NO obstacle
+                cost_translation_table_[253] = 99;  // INSCRIBED obstacle
+                cost_translation_table_[254] = 100;  // LETHAL obstacle
+                cost_translation_table_[255] = -1;  // UNKNOWN
+
+                // regular cost values scale the range 1 to 252 (inclusive) to fit
+                // into 1 to 98 (inclusive).
+                for (int i = 1; i < 253; i++)
+                {
+                    cost_translation_table_[ i ] = char(1 + (97 * (i - 1)) / 251);
+                }
+            }
 
             private_nh.param("xy_goal_tolerance", xy_goal_tolerance_, 0.1);
             private_nh.param("yaw_goal_tolerance", yaw_goal_tolerance_, 0.1);
@@ -151,12 +187,14 @@ namespace neuro_local_planner_wrapper
         {
             ROS_WARN("This planner has already been initialized, doing nothing.");
         }
+        ROS_WARN("<<<NeuroLocalPlannerWrapper::initialize()");
     }
 
 
     // Sets the plan
     bool NeuroLocalPlannerWrapper::setPlan(const std::vector<geometry_msgs::PoseStamped>& orig_global_plan)
     {
+        ROS_WARN("<<<NeuroLocalPlannerWrapper::setPlan()");
         // Check if the planner has been initialized
         if (!initialized_)
         {
@@ -198,6 +236,7 @@ namespace neuro_local_planner_wrapper
     // Compute the velocity commands
     bool NeuroLocalPlannerWrapper::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
     {
+        //ROS_WARN("<<<%s()", __FUNCTION__);
         return true;
     }
 
@@ -205,7 +244,25 @@ namespace neuro_local_planner_wrapper
     // Tell if goal was reached
     bool NeuroLocalPlannerWrapper::isGoalReached()
     {
-        return false;
+        double reward = 0.0;
+        //ROS_INFO("<<<%s()", __FUNCTION__);
+        if (! initialized_) {
+            ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
+            return false;
+        }
+        if ( ! costmap_ros_->getRobotPose(current_pose_)) {
+            ROS_ERROR("Could not get robot pose");
+            return false;
+        }
+
+        //if(latchedStopRotateController_.isGoalReached(&planner_util_, odom_helper_, current_pose_)) {
+        if(isAtGoal(reward)) {
+            ROS_INFO("Goal reached");
+            return true;
+        } else {
+            //ROS_INFO("Goal Not reached");
+            return false;
+        }
     }
 
 
@@ -215,8 +272,8 @@ namespace neuro_local_planner_wrapper
         customized_costmap_ = nav_msgs::OccupancyGrid();
 
         // header
-        //customized_costmap_.header.frame_id = "/base_footprint";
-        customized_costmap_.header.frame_id = "odom";
+        customized_costmap_.header.frame_id = "/base_footprint";
+        //customized_costmap_.header.frame_id = "odom";
         customized_costmap_.header.stamp = ros::Time::now();
         customized_costmap_.header.seq = 0;
 
@@ -456,10 +513,23 @@ namespace neuro_local_planner_wrapper
         action_pub_.publish(action_);
     }
 
+    void NeuroLocalPlannerWrapper::cbLocalCostmap(nav_msgs::OccupancyGrid grid)
+    {
+        ROS_WARN(">>>%s()", __FUNCTION__);
+        //customized_costmap_.info = grid.info;
+        buildStateRepresentation(grid.header, grid.data);
+    }
+
+    void NeuroLocalPlannerWrapper::cbLocalCostmapUpdate(map_msgs::OccupancyGridUpdate grid_update)
+    {
+        ROS_WARN(">>>%s()", __FUNCTION__);
+        buildStateRepresentation(grid_update.header, grid_update.data);
+    }
 
     // Callback function for the subscriber to the laser scan
-    void NeuroLocalPlannerWrapper::buildStateRepresentation(sensor_msgs::LaserScan laser_scan)
+    void NeuroLocalPlannerWrapper::buildStateRepresentation(std_msgs::Header header, std::vector<int8_t> costmap_data)
     {
+        ROS_WARN(">>>%s()", __FUNCTION__);
         clock_counter++;
         if (clock_counter%4 != 0)
             return;
@@ -467,102 +537,32 @@ namespace neuro_local_planner_wrapper
         // Check for collision or goal reached
         if (is_running_)
         {
+            ROS_WARN("<<<%s() run!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1", __FUNCTION__);
             double reward = 0.0;
-#if 0
-            if (isCrashed(reward) || isAtGoal(reward))
+            bool          buffer_clear = false;
+            unsigned char is_episode_finished = 0;
+
+            // clear costmap/set all pixel gray
+            std::vector<int8_t> data(customized_costmap_.info.width*customized_costmap_.info.height,50);
+            customized_costmap_.data = data;
+
+            // to_delete: ------
+            customized_costmap_.header.stamp = header.stamp;
+
             {
-                // New episode so restart the time count
-                start_time_ = ros::Time::now().toSec();
+                double roll, pitch, yaw;
+                costmap_ros_->getRobotPose(current_pose_);
+                current_pose_.getBasis().getRPY(roll, pitch, yaw);
 
-                // This is the last transition published in this episode
-                is_running_ = false;
+                // Draw Center
+                cv::Mat rawData(cv::Size(customized_costmap_.info.width, customized_costmap_.info.height), CV_8UC1, (void*)&(customized_costmap_.data[0]));
 
-                // Stop moving
-                setZeroAction();
+                cv::Point center(customized_costmap_.info.width/2, customized_costmap_.info.height/2);
 
-                // Publish that a new round can be started with the stage_sim_bot
-                std_msgs::Bool new_round;
-                new_round.data = 1;
-                state_pub_.publish(new_round);
+                DrawArrow(rawData, center, yaw, cv::Scalar(75));
 
-                // Create transition message with empty state
-                transition_msg_.header.stamp = laser_scan.header.stamp;
-                transition_msg_.header.frame_id = customized_costmap_.header.frame_id;
-                transition_msg_.is_episode_finished = 1;
-                transition_msg_.reward = reward;
-
-                // clear buffer to get empty state representation
-                transition_msg_.state_representation.clear();
-
-                // Publish it
-                transition_msg_pub_.publish(transition_msg_);
-
-                // increment seq for next costmap
-                transition_msg_.header.seq = transition_msg_.header.seq + 1;
-
-                // reset counter
-                goal_invisible_count = 0;
-            }
-            else if (ros::Time::now().toSec() - start_time_ > max_time_ || isGoalInvisible())
-            {
-                // New episode so restart the time count
-                start_time_ = ros::Time::now().toSec();
-
-                // This is the last transition published in this episode
-                is_running_ = false;
-
-                // Stop moving
-                setZeroAction();
-
-                // Publish that a new round can be started with the stage_sim_bot
-                std_msgs::Bool new_round;
-                new_round.data = 1;
-                state_pub_.publish(new_round);
-
-                // Create transition message with empty state
-                transition_msg_.header.stamp = laser_scan.header.stamp;
-                transition_msg_.header.frame_id = customized_costmap_.header.frame_id;
-                transition_msg_.is_episode_finished = 1;
-                transition_msg_.reward = reward;
-
-                // clear buffer to get empty state representation
-                transition_msg_.state_representation.clear();
-
-                // Publish it
-                transition_msg_pub_.publish(transition_msg_);
-
-                // increment seq for next costmap
-                transition_msg_.header.seq = transition_msg_.header.seq + 1;
-
-                // reset counter
-                goal_invisible_count = 0;
-            }
-            else
-#endif
-            {
-                bool          buffer_clear = false;
-                unsigned char is_episode_finished = 0;
-
-                // clear costmap/set all pixel gray
-                std::vector<int8_t> data(customized_costmap_.info.width*customized_costmap_.info.height,50);
-                customized_costmap_.data = data;
-
-
-                // to_delete: ------
-                customized_costmap_.header.stamp = laser_scan.header.stamp;
-
+                if (customized_costmap_.header.frame_id.compare("odom") == 0)
                 {
-                    double roll, pitch, yaw;
-                    costmap_ros_->getRobotPose(current_pose_);
-                    current_pose_.getBasis().getRPY(roll, pitch, yaw);
-
-                    // Draw Center
-                    cv::Mat rawData(cv::Size(customized_costmap_.info.width, customized_costmap_.info.height), CV_8UC1, (void*)&(customized_costmap_.data[0]));
-
-                    cv::Point center(customized_costmap_.info.width/2, customized_costmap_.info.height/2);
-
-                    DrawArrow(rawData, center, yaw, cv::Scalar(75));
-
                     double resolution = costmap_->getResolution();
                     double wx, wy;
                     costmap_->mapToWorld(0, 0, wx, wy);
@@ -571,106 +571,164 @@ namespace neuro_local_planner_wrapper
                     customized_costmap_.info.origin.position.z = 0.01;
                     customized_costmap_.info.origin.orientation.w = 1.0;
                 }
+            }
 
-                if (   isCrashed(reward)
-                    || isTimeOut(reward)
-                    || isGoalInvisible(reward))
-                {
-                    // New episode so restart the time count
+            if (   isCrashed(reward)
+                || isTimeOut(reward)
+                || isGoalInvisible(reward))
+            {
+                // New episode so restart the time count
+                start_time_ = ros::Time::now().toSec();
+
+                // This is the last transition published in this episode
+                is_running_ = false;
+
+                // Stop moving
+                setZeroAction();
+
+                // Publish that a new round can be started with the stage_sim_bot
+                std_msgs::Bool new_round;
+                new_round.data = 1;
+                state_pub_.publish(new_round);
+
+                is_episode_finished = 1;
+                buffer_clear = true;
+                goal_invisible_count = 0;
+                clock_counter = 0;
+            }
+            else if ( isAtGoal(reward))
+            {
+                // New episode so restart the time count
+                start_time_ = ros::Time::now().toSec();
+
+                // This is the last transition published in this episode
+                is_running_ = false;
+
+                // Stop moving
+                setZeroAction();
+
+                // Publish that a new round can be started with the stage_sim_bot
+                std_msgs::Bool new_round;
+                new_round.data = 1;
+                state_pub_.publish(new_round);
+
+                is_episode_finished = 0;
+                buffer_clear = true;
+                goal_invisible_count = 0;
+                clock_counter = 0;
+            }
+            else{
+                // calculated sub goal
+                processSubGoal(reward);
+
+                // reset timer
+                if (reward > 0.0)
                     start_time_ = ros::Time::now().toSec();
+            }
 
-                    // This is the last transition published in this episode
-                    is_running_ = false;
+            // add global plan as white pixel with some gradient to indicate its direction
+            addGlobalPlan();
 
-                    // Stop moving
-                    setZeroAction();
+            // inspect goal visibility
+            processGoalVisibility();
 
-                    // Publish that a new round can be started with the stage_sim_bot
-                    std_msgs::Bool new_round;
-                    new_round.data = 1;
-                    state_pub_.publish(new_round);
+            // add laser scan points as invalid/black pixel
+            //addLaserScanPoints(laser_scan);
+            {
+                boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
 
-                    is_episode_finished = 1;
-                    buffer_clear = true;
-                    goal_invisible_count = 0;
-                    clock_counter = 0;
-                }
-                else if ( isAtGoal(reward))
+                tf::StampedTransform transform;
+                try
                 {
-                    // New episode so restart the time count
-                    start_time_ = ros::Time::now().toSec();
-
-                    // This is the last transition published in this episode
-                    is_running_ = false;
-
-                    // Stop moving
-                    setZeroAction();
-
-                    // Publish that a new round can be started with the stage_sim_bot
-                    std_msgs::Bool new_round;
-                    new_round.data = 1;
-                    state_pub_.publish(new_round);
-
-                    is_episode_finished = 0;
-                    buffer_clear = true;
-                    goal_invisible_count = 0;
-                    clock_counter = 0;
+                    tf_->lookupTransform(header.frame_id, customized_costmap_.header.frame_id, ros::Time(0), transform);
                 }
-                else{
-                    // calculated sub goal
-                    processSubGoal(reward);
-
-                    // reset timer
-                    if (reward > 0.0)
-                        start_time_ = ros::Time::now().toSec();
+                catch (tf::TransformException ex)
+                {
+                    ROS_ERROR("%s", ex.what());
+                    return;
                 }
 
-                // add global plan as white pixel with some gradient to indicate its direction
-                addGlobalPlan();
 
-                // inspect goal visibility
-                processGoalVisibility();
+                unsigned int mx, my;
+                double wx, wy;
+                unsigned int value;
+                ROS_WARN("\t%s -> %s", header.frame_id.c_str(), customized_costmap_.header.frame_id.c_str());
+                for (unsigned int i = 0; i < customized_costmap_.info.height; i++)
+                {
+                    for (unsigned int j = 0; j < customized_costmap_.info.width; j++)
+                    {
+                        wx = customized_costmap_.info.origin.position.x + (j + 0.5)*customized_costmap_.info.resolution;
+                        wy = customized_costmap_.info.origin.position.y + (i + 0.5)*customized_costmap_.info.resolution;
+                        tf::Point p(wx, wy, 0);
+                        p = transform(p);
+                        if (costmap_->worldToMap(p.x(), p.y(), mx, my))
+                        {
+                            value = costmap_->getCost(mx, my);
+                            if (value == 255)
+                                customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
+                            else if (value >= 254)
+                                customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
+                        }
+                    }
+                }
+/*
+                unsigned char* data = costmap_->getCharMap();
+                for (unsigned int i = 0; i < customized_costmap_.data.size(); i++)
+                {
+                    if (data[i] == 255)
+                        ;
+                    else if (data[i] >= 252)
+                        customized_costmap_.data[i] = cost_translation_table_[ data[ i ]];
+                }
+*/
+//                memcpy((void *)customized_costmap_.data.data(), (void *)costmap_->getCharMap(), customized_costmap_.data.size());
+//                customized_costmap_.data = costmap_data;
+//                for (int i = 0; i < customized_costmap_.data.size(); i++)
+//                {
+//                    //ROS_ERROR("%d",(unsigned char) customized_costmap_.data[i]);
+//                    customized_costmap_.data[i] = local_costmap.data[i];
+//                }
 
-                // add laser scan points as invalid/black pixel
-                addLaserScanPoints(laser_scan);
+            }
 
-                // publish customized costmap for visualization
-                customized_costmap_pub_.publish(customized_costmap_);
+            // publish customized costmap for visualization
+            customized_costmap_pub_.publish(customized_costmap_);
+
+            // increment seq for next costmap
+            customized_costmap_.header.seq = customized_costmap_.header.seq + 1;
+
+            // build transition message/add actual costmap to buffer
+            transition_msg_.state_representation.insert(transition_msg_.state_representation.end(),
+                                                        customized_costmap_.data.begin(),
+                                                        customized_costmap_.data.end());
+
+            // publish transition message after four consecutive costmaps are available
+            if (transition_msg_.state_representation.size() > transition_msg_.width*
+                                                            transition_msg_.height*
+                                                            transition_msg_.depth)
+            {
+                // erase first costmap in the queue
+                transition_msg_.state_representation.erase(transition_msg_.state_representation.begin(),
+                                transition_msg_.state_representation.begin() + transition_msg_.width*transition_msg_.height);
+
+                // publish
+                transition_msg_.header.stamp = customized_costmap_.header.stamp;
+                transition_msg_.header.frame_id = customized_costmap_.header.frame_id;
+                transition_msg_.is_episode_finished = is_episode_finished;
+                transition_msg_.reward = reward;
+
+                ROS_WARN("<<<%s() - publish()", __FUNCTION__);
+
+                transition_msg_pub_.publish(transition_msg_);
 
                 // increment seq for next costmap
-                customized_costmap_.header.seq = customized_costmap_.header.seq + 1;
+                transition_msg_.header.seq = transition_msg_.header.seq + 1;
 
-                // build transition message/add actual costmap to buffer
-                transition_msg_.state_representation.insert(transition_msg_.state_representation.end(),
-                                                            customized_costmap_.data.begin(),
-                                                            customized_costmap_.data.end());
-
-                // publish transition message after four consecutive costmaps are available
-                if (transition_msg_.state_representation.size() > transition_msg_.width*
-                                                                transition_msg_.height*
-                                                                transition_msg_.depth)
-                {
-                    // erase first costmap in the queue
-                    transition_msg_.state_representation.erase(transition_msg_.state_representation.begin(),
-                                    transition_msg_.state_representation.begin() + transition_msg_.width*transition_msg_.height);
-
-                    // publish
-                    transition_msg_.header.stamp = customized_costmap_.header.stamp;
-                    transition_msg_.header.frame_id = customized_costmap_.header.frame_id;
-                    transition_msg_.is_episode_finished = is_episode_finished;
-                    transition_msg_.reward = reward;
-
-                    transition_msg_pub_.publish(transition_msg_);
-
-                    // increment seq for next costmap
-                    transition_msg_.header.seq = transition_msg_.header.seq + 1;
-
-                }
-
-                // clear buffer
-                if (buffer_clear)
-                    transition_msg_.state_representation.clear();
             }
+
+            // clear buffer
+            if (buffer_clear)
+                transition_msg_.state_representation.clear();
         }
     }
 
