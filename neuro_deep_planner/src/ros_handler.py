@@ -78,15 +78,17 @@ class ROSHandler:
         # Generate msg output
         if self.robot_type == 'holonomic':
             vel_cmd = Twist(Vector3(action[0], action[1], 0), Vector3(0, 0, 0))
+            #vel_cmd2 = Twist(Vector3(0.02*action[0], 0.02*action[1], 0), Vector3(0, 0, 0))
         elif self.robot_type == 'nonholonomic':
             vel_cmd = Twist(Vector3(action[0], 0, 0), Vector3(0, 0, action[1]))
+            #vel_cmd2 = Twist(Vector3(0.02*action[0], 0, 0), Vector3(0, 0, action[1]))
         else:
             rospy.logerr("Wrong robot_type parameter")
             sys.exit(-1)
 
         # Send the action back
         self.__pub.publish(vel_cmd)
-        self.__pub2.publish(Twist(Vector3(0.02*action[0], 0, 0), Vector3(0, 0, action[1])))
+        self.__pub2.publish(vel_cmd)
 
     def new_msg(self):
 
