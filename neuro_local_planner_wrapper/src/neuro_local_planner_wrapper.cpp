@@ -56,6 +56,8 @@ namespace neuro_local_planner_wrapper
 
     // Constructor
     NeuroLocalPlannerWrapper::NeuroLocalPlannerWrapper() : initialized_(false), yaw_constraint_flag_(false),
+                                                           frame_interval_(4), transition_frame_counter_(0),
+                                                           transition_frame_interval_(1), transition_depth_(4),
                                                            blp_loader_("nav_core", "nav_core::BaseLocalPlanner") {}
 
     // Destructor
@@ -157,6 +159,8 @@ namespace neuro_local_planner_wrapper
             // We are now initialized
             initialized_ = true;
             clock_counter = 0;
+            transition_frame_counter_ = 0;
+
             if (cost_translation_table_ == NULL)
             {
                 cost_translation_table_ = new char[256];
@@ -272,8 +276,8 @@ namespace neuro_local_planner_wrapper
         customized_costmap_ = nav_msgs::OccupancyGrid();
 
         // header
-        customized_costmap_.header.frame_id = "/base_footprint";
-        //customized_costmap_.header.frame_id = "odom";
+        //customized_costmap_.header.frame_id = "/base_footprint";
+        customized_costmap_.header.frame_id = "odom";
         customized_costmap_.header.stamp = ros::Time::now();
         customized_costmap_.header.seq = 0;
 
@@ -294,15 +298,21 @@ namespace neuro_local_planner_wrapper
     // Helper function to initialize the transition message for the planning node
     void NeuroLocalPlannerWrapper::initializeTransitionMsg()
     {
-        // header
-        transition_msg_.header.frame_id = customized_costmap_.header.frame_id;
-        transition_msg_.header.stamp = customized_costmap_.header.stamp;
-        transition_msg_.header.seq = 0;
+        for (int i = 0; i < transition_frame_interval_; i++)
+        {
+            neuro_local_planner_wrapper::Transition transition_msg_;
+            // header
+            transition_msg_.header.frame_id = customized_costmap_.header.frame_id;
+            transition_msg_.header.stamp = customized_costmap_.header.stamp;
+            transition_msg_.header.seq = 0;
 
-        // info
-        transition_msg_.width = customized_costmap_.info.width;
-        transition_msg_.height = customized_costmap_.info.height;
-        transition_msg_.depth = 4; // use four consecutive maps for state representation 
+            // info
+            transition_msg_.width = customized_costmap_.info.width;
+            transition_msg_.height = customized_costmap_.info.height;
+            transition_msg_.depth = transition_depth_; // use four consecutive maps for state representation
+
+            transition_msg_vec_.push_back(transition_msg_);
+        }
     }
 
 
@@ -531,13 +541,17 @@ namespace neuro_local_planner_wrapper
     {
         ROS_WARN(">>>%s()", __FUNCTION__);
         clock_counter++;
-        if (clock_counter%4 != 0)
+        if (clock_counter%frame_interval_ != 0)
             return;
+
+        transition_frame_counter_++;
 
         // Check for collision or goal reached
         if (is_running_)
         {
             ROS_WARN("<<<%s() run!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1", __FUNCTION__);
+
+
             double reward = 0.0;
             bool          buffer_clear = false;
             unsigned char is_episode_finished = 0;
@@ -552,7 +566,17 @@ namespace neuro_local_planner_wrapper
             {
                 double roll, pitch, yaw;
                 costmap_ros_->getRobotPose(current_pose_);
-                current_pose_.getBasis().getRPY(roll, pitch, yaw);
+                geometry_msgs::PoseStamped current_pose;
+                tf::poseStampedTFToMsg(current_pose_, current_pose);
+                geometry_msgs::PoseStamped current_pose_to_map;
+                try {
+                    tf_->waitForTransform(  customized_costmap_.header.frame_id, current_pose.header.frame_id, ros::Time(0), ros::Duration(2.0));
+                    tf_->transformPose(     customized_costmap_.header.frame_id, current_pose, current_pose_to_map);
+                } catch (tf::TransformException ex) {
+                    ROS_ERROR("%s", ex.what());
+                }
+                //current_pose_.getBasis().getRPY(roll, pitch, yaw);
+                yaw = tf::getYaw(current_pose_to_map.pose.orientation);
 
                 // Draw Center
                 cv::Mat rawData(cv::Size(customized_costmap_.info.width, customized_costmap_.info.height), CV_8UC1, (void*)&(customized_costmap_.data[0]));
@@ -595,6 +619,7 @@ namespace neuro_local_planner_wrapper
                 buffer_clear = true;
                 goal_invisible_count = 0;
                 clock_counter = 0;
+                transition_frame_counter_ = 0;
             }
             else if ( isAtGoal(reward))
             {
@@ -616,6 +641,7 @@ namespace neuro_local_planner_wrapper
                 buffer_clear = true;
                 goal_invisible_count = 0;
                 clock_counter = 0;
+                transition_frame_counter_ = 0;
             }
             else{
                 // calculated sub goal
@@ -698,6 +724,9 @@ namespace neuro_local_planner_wrapper
             customized_costmap_.header.seq = customized_costmap_.header.seq + 1;
 
             // build transition message/add actual costmap to buffer
+            int transition_idx = transition_frame_counter_%transition_frame_interval_;
+            neuro_local_planner_wrapper::Transition &transition_msg_ = transition_msg_vec_[transition_idx];
+
             transition_msg_.state_representation.insert(transition_msg_.state_representation.end(),
                                                         customized_costmap_.data.begin(),
                                                         customized_costmap_.data.end());
@@ -728,7 +757,12 @@ namespace neuro_local_planner_wrapper
 
             // clear buffer
             if (buffer_clear)
-                transition_msg_.state_representation.clear();
+            {
+                for (int i = 0; i < transition_frame_interval_; i++)
+                {
+                    transition_msg_vec_[i].state_representation.clear();
+                }
+            }
         }
     }
 

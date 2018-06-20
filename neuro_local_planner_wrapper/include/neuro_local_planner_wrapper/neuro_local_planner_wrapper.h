@@ -140,7 +140,7 @@ namespace neuro_local_planner_wrapper
 
             // Transition message with actual state representation which is four consecutive costmaps stacked together
             // in one vector and actual reward
-            neuro_local_planner_wrapper::Transition transition_msg_;
+            std::vector<neuro_local_planner_wrapper::Transition> transition_msg_vec_;
 
             visualization_msgs::MarkerArray marker_array_; // to_delete
 
@@ -174,6 +174,12 @@ namespace neuro_local_planner_wrapper
             // To close up an episode if it lasts too long
             double max_time_;
             double start_time_;
+
+            // frame interval and transition depth
+            int frame_interval_;                  // frame interval
+            long long transition_frame_counter_;
+            int transition_frame_interval_;       // interval btw frames in transition
+            int transition_depth_;                // the number of frames for one transition
 
             // For x/yaw control
             bool yaw_constraint_flag_;
