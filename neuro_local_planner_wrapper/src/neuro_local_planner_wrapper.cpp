@@ -84,6 +84,18 @@ namespace neuro_local_planner_wrapper
             private_nh.param("/robot_type", robot_type_str, std::string("holonomic"));
             yaw_constraint_flag_ = (robot_type_str.compare(std::string("nonholonomic")) == 0);
 
+            private_nh.param("xy_goal_tolerance", xy_goal_tolerance_, 0.1);
+            private_nh.param("yaw_goal_tolerance", yaw_goal_tolerance_, 0.1);
+
+            private_nh.param("frame_interval", frame_interval_, 4);
+            private_nh.param("transition_frame_interval", transition_frame_interval_, 1);
+
+            ROS_INFO("xy_goal_tolerance: %f", xy_goal_tolerance_);
+            ROS_INFO("yaw_goal_tolerance: %f", yaw_goal_tolerance_);
+            ROS_INFO("frame_interval_: %d", frame_interval_);
+            ROS_INFO("transition_frame_interval_: %d", transition_frame_interval_);
+
+
             // Publishers & Subscribers
             state_pub_ = private_nh.advertise<std_msgs::Bool>("new_round", 1);
 
@@ -178,12 +190,6 @@ namespace neuro_local_planner_wrapper
                     cost_translation_table_[ i ] = char(1 + (97 * (i - 1)) / 251);
                 }
             }
-
-            private_nh.param("xy_goal_tolerance", xy_goal_tolerance_, 0.1);
-            private_nh.param("yaw_goal_tolerance", yaw_goal_tolerance_, 0.1);
-
-            ROS_INFO("xy_goal_tolerance: %f", xy_goal_tolerance_);
-            ROS_INFO("yaw_goal_tolerance: %f", yaw_goal_tolerance_);
 
             ROS_ERROR("Initialization has been done.");
         }
@@ -549,9 +555,6 @@ namespace neuro_local_planner_wrapper
         // Check for collision or goal reached
         if (is_running_)
         {
-            ROS_WARN("<<<%s() run!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1", __FUNCTION__);
-
-
             double reward = 0.0;
             bool          buffer_clear = false;
             unsigned char is_episode_finished = 0;
@@ -678,7 +681,6 @@ namespace neuro_local_planner_wrapper
                 unsigned int mx, my;
                 double wx, wy;
                 unsigned int value;
-                ROS_WARN("\t%s -> %s", header.frame_id.c_str(), customized_costmap_.header.frame_id.c_str());
                 for (unsigned int i = 0; i < customized_costmap_.info.height; i++)
                 {
                     for (unsigned int j = 0; j < customized_costmap_.info.width; j++)
@@ -746,7 +748,7 @@ namespace neuro_local_planner_wrapper
                 transition_msg_.is_episode_finished = is_episode_finished;
                 transition_msg_.reward = reward;
 
-                ROS_WARN("<<<%s() - publish()", __FUNCTION__);
+                ROS_WARN("   %s() - publish trainsition", __FUNCTION__);
 
                 transition_msg_pub_.publish(transition_msg_);
 
@@ -764,6 +766,7 @@ namespace neuro_local_planner_wrapper
                 }
             }
         }
+        ROS_WARN("<<<%s()", __FUNCTION__);
     }
 
 
