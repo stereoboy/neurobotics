@@ -33,18 +33,6 @@ PRE_TRAINED_NETS = False
 NET_LOAD_PATH = os.path.join(os.path.dirname(__file__), os.pardir)+"/pre_trained_networks/pre_trained_networks"
 
 # Data Directory
-#DATA_PATH = os.path.expanduser('~') + '/rl_nav_data'
-DATA_PATH = './rl_nav_data'
-#DATA_PATH = './rl_nav_data_simple_no_wall'
-
-# path to tensorboard data
-TFLOG_PATH = DATA_PATH + '/tf_logs'
-
-# path to experience files
-EXPERIENCE_PATH = DATA_PATH + '/experiences'
-
-# path to trained net files
-NET_SAVE_PATH = DATA_PATH + '/weights'
 
 # Should we use an existing initial buffer with experiences
 NEW_INITIAL_BUFFER = False
@@ -61,16 +49,27 @@ MAX_NOISE_STEP = 3000000
 
 class DDPG:
 
-    def __init__(self, action_bounds):
+    def __init__(self, action_bounds, data_path):
+
+        self.data_path = data_path
+        # path to tensorboard data
+        self.tflog_path = data_path + '/tf_logs'
+
+        # path to experience files
+        self.experience_path = data_path + '/experiences'
+
+        # path to trained net files
+        self.net_save_path = data_path + '/weights'
 
         # Make sure all the directories exist
-        if not tf.gfile.Exists(TFLOG_PATH):
-            tf.gfile.MakeDirs(TFLOG_PATH)
-        if not tf.gfile.Exists(EXPERIENCE_PATH):
-            tf.gfile.MakeDirs(EXPERIENCE_PATH)
-        if not tf.gfile.Exists(NET_SAVE_PATH):
-            tf.gfile.MakeDirs(NET_SAVE_PATH)
-
+        if not tf.gfile.Exists(self.data_path):
+            tf.gfile.MakeDirs(self.data_path)
+        if not tf.gfile.Exists(self.tflog_path):
+            tf.gfile.MakeDirs(self.tflog_path)
+        if not tf.gfile.Exists(self.experience_path):
+            tf.gfile.MakeDirs(self.experience_path)
+        if not tf.gfile.Exists(self.net_save_path):
+            tf.gfile.MakeDirs(self.net_save_path)
 
         self.action_bounds = action_bounds
 
@@ -102,13 +101,9 @@ class DDPG:
             # Initialize the grad inverter object to keep the action bounds
             self.grad_inv = GradInverter(self.action_bounds[0], self.action_bounds[1], self.session)
 
-            # Make sure the directory for the data files exists
-            if not tf.gfile.Exists(DATA_PATH):
-                tf.gfile.MakeDirs(DATA_PATH)
-
             # Initialize summary writers to plot variables during training
             #self.summary_op = tf.merge_all_summaries()
-            self.summary_writer = tf.summary.FileWriter(TFLOG_PATH)
+            self.summary_writer = tf.summary.FileWriter(self.tflog_path)
 
             # Initialize actor and critic networks
             self.training_step_variable = tf.Variable(0, name='global_step', trainable=False)
@@ -121,7 +116,7 @@ class DDPG:
             self.saver = tf.train.Saver()
 
             # initialize the experience data manger
-            self.data_manager = DataManager(BATCH_SIZE, EXPERIENCE_PATH, self.session)
+            self.data_manager = DataManager(BATCH_SIZE, self.experience_path, self.session)
 
             # Uncomment if collecting a buffer for the autoencoder
             # self.buffer = deque()
@@ -132,7 +127,7 @@ class DDPG:
             if PRE_TRAINED_NETS:
                 self.saver.restore(self.session, NET_LOAD_PATH)
             else:
-                checkpoint = tf.train.latest_checkpoint(NET_SAVE_PATH)
+                checkpoint = tf.train.latest_checkpoint(self.net_save_path)
                 if checkpoint:
                     print("Restoring from checkpoint: %s" % checkpoint)
                     self.saver.restore(self.session, checkpoint)
@@ -212,7 +207,7 @@ class DDPG:
             if self.training_step > 0 and self.training_step % SAVE_STEP == 0:
                 st = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 print("[{}][{}] SAVE ###################################".format(st, self.training_step))
-                self.saver.save(self.session, NET_SAVE_PATH + "/weights", global_step=self.training_step_variable)
+                self.saver.save(self.session, self.net_save_path + "/weights", global_step=self.training_step_variable)
 
         self.data_manager.check_for_enqueue()
 

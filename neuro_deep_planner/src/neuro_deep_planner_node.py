@@ -20,6 +20,7 @@ PLOT_PATH = DATA_PATH + '/plotting_results'
 
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_string("mode", "train", "mode: train or eval")
+tf.flags.DEFINE_string("dir", "./rl_nav_data", "directory to save")
 
 action_bounds_dict = {
     'holonomic': [[-0.4, 0.4], [-0.4, 0.4]],
@@ -34,11 +35,12 @@ def main():
     ros_handler = ROSHandler()
     ros_handler.on_policy = False
 
-    agent = DDPG(action_bounds_dict[ros_handler.robot_type])
-
     print("###################################################################")
     print("mode: {}".format(FLAGS.mode))
     print("###################################################################")
+
+    agent = DDPG(action_bounds_dict[ros_handler.robot_type], FLAGS.dir)
+
     if FLAGS.mode == 'eval':
         agent.noise_flag = False
     else:
