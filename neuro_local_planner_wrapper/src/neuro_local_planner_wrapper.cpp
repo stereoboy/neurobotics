@@ -237,6 +237,8 @@ namespace neuro_local_planner_wrapper
             global_plan_[i].pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, yaw); // http://docs.ros.org/api/tf/html/c++/transform__datatypes_8h.html
         }
 
+        goal_position_ = global_plan_.back();
+
         is_running_ = true;
 
         return true;
@@ -261,7 +263,7 @@ namespace neuro_local_planner_wrapper
             return false;
         }
         if ( ! costmap_ros_->getRobotPose(current_pose_)) {
-            ROS_ERROR("Could not get robot pose");
+            ROS_ERROR("%s: Could not get robot pose", __FUNCTION__);
             return false;
         }
 
@@ -340,14 +342,20 @@ namespace neuro_local_planner_wrapper
     bool NeuroLocalPlannerWrapper::isCrashed(double& reward)
     {
         // Get current position of robot
-        costmap_ros_->getRobotPose(current_pose_); // in frame odom
+        tf::Stamped<tf::Pose> current_pose;
+
+        if (!costmap_ros_->getRobotPose(current_pose)) // in frame odom
+        {
+            ROS_ERROR("%s: Could not get robot pose", __FUNCTION__);
+            abort();
+        }
 
         // Compute map coordinates
         int robot_x;
         int robot_y;
-        costmap_->worldToMapNoBounds(current_pose_.getOrigin().getX(), current_pose_.getOrigin().getY(), robot_x,
-                                     robot_y);
+        costmap_->worldToMapNoBounds(current_pose.getOrigin().getX(), current_pose.getOrigin().getY(), robot_x, robot_y);
 
+        ROS_ERROR("-----(%f, %f) -> (%d, %d)   // (%f, %f)", current_pose.getOrigin().getX(),current_pose.getOrigin().getY(), robot_x, robot_y, costmap_->getOriginX(), costmap_->getOriginY());
         // This causes a crash not just a critical positions but a little bit before the wall
         // TODO: could be solved nicer by using a different inscribed radius, then: >= 253
         if(costmap_->getCost((unsigned int)robot_x, (unsigned int)robot_y) >= threshold_crash)
@@ -384,7 +392,7 @@ namespace neuro_local_planner_wrapper
         costmap_ros_->getRobotPose(current_pose_);
 
         // Get goal position
-        geometry_msgs::PoseStamped goal_position = global_plan_.back();
+        geometry_msgs::PoseStamped goal_position = goal_position_;
 
         // Transform current position of robot to map frame
         geometry_msgs::PoseStamped current_pose;
