@@ -7,19 +7,17 @@
 // Register this planner as a BaseLocalPlanner plugin
 PLUGINLIB_EXPORT_CLASS(neuro_local_planner_wrapper::NeuroLocalPlannerWrapper, nav_core::BaseLocalPlanner)
 
-double direction_line_len = 15;
-
 int threshold_crash = 170;
 double subgoal_reward = 0.2;
 
 namespace neuro_local_planner_wrapper
 {
 
-    void DrawArrow(cv::Mat img, cv::Point center, double yaw, cv::Scalar color)
+    void DrawArrow(cv::Mat img, cv::Point center, int half_width, double yaw, cv::Scalar color)
     {
-        cv::Point direction = center + cv::Point(cos(yaw)*direction_line_len, sin(yaw)*direction_line_len);
-        cv::Point left = center + cv::Point(cos(yaw + M_PI/2.0)*direction_line_len/4, sin(yaw + M_PI/2.9)*direction_line_len/4);
-        cv::Point right = center + cv::Point(cos(yaw - M_PI/2.0)*direction_line_len/4, sin(yaw - M_PI/2.9)*direction_line_len/4);
+        cv::Point direction = center + cv::Point(cos(yaw)*half_width*3, sin(yaw)*half_width*3);
+        cv::Point left = center + cv::Point(cos(yaw + M_PI/2.0)*half_width, sin(yaw + M_PI/2.9)*half_width);
+        cv::Point right = center + cv::Point(cos(yaw - M_PI/2.0)*half_width, sin(yaw - M_PI/2.9)*half_width);
         cv::Point points[3];
         points[0] = direction;
         points[1] = left;
@@ -284,8 +282,8 @@ namespace neuro_local_planner_wrapper
         customized_costmap_ = nav_msgs::OccupancyGrid();
 
         // header
-        //customized_costmap_.header.frame_id = "/base_footprint";
-        customized_costmap_.header.frame_id = "odom";
+        customized_costmap_.header.frame_id = "/base_footprint";
+        //customized_costmap_.header.frame_id = "odom";
         customized_costmap_.header.stamp = ros::Time::now();
         customized_costmap_.header.seq = 0;
 
@@ -569,43 +567,21 @@ namespace neuro_local_planner_wrapper
 
             // clear costmap/set all pixel gray
             std::vector<int8_t> data(customized_costmap_.info.width*customized_costmap_.info.height,50);
+            customized_costmap_.data.clear();
             customized_costmap_.data = data;
 
             // to_delete: ------
             customized_costmap_.header.stamp = header.stamp;
 
+            if (customized_costmap_.header.frame_id.compare("odom") == 0)
             {
-                double roll, pitch, yaw;
-                costmap_ros_->getRobotPose(current_pose_);
-                geometry_msgs::PoseStamped current_pose;
-                tf::poseStampedTFToMsg(current_pose_, current_pose);
-                geometry_msgs::PoseStamped current_pose_to_map;
-                try {
-                    tf_->waitForTransform(  customized_costmap_.header.frame_id, current_pose.header.frame_id, ros::Time(0), ros::Duration(2.0));
-                    tf_->transformPose(     customized_costmap_.header.frame_id, current_pose, current_pose_to_map);
-                } catch (tf::TransformException ex) {
-                    ROS_ERROR("%s", ex.what());
-                }
-                //current_pose_.getBasis().getRPY(roll, pitch, yaw);
-                yaw = tf::getYaw(current_pose_to_map.pose.orientation);
-
-                // Draw Center
-                cv::Mat rawData(cv::Size(customized_costmap_.info.width, customized_costmap_.info.height), CV_8UC1, (void*)&(customized_costmap_.data[0]));
-
-                cv::Point center(customized_costmap_.info.width/2, customized_costmap_.info.height/2);
-
-                DrawArrow(rawData, center, yaw, cv::Scalar(75));
-
-                if (customized_costmap_.header.frame_id.compare("odom") == 0)
-                {
-                    double resolution = costmap_->getResolution();
-                    double wx, wy;
-                    costmap_->mapToWorld(0, 0, wx, wy);
-                    customized_costmap_.info.origin.position.x = wx - resolution / 2;
-                    customized_costmap_.info.origin.position.y = wy - resolution / 2;
-                    customized_costmap_.info.origin.position.z = 0.01;
-                    customized_costmap_.info.origin.orientation.w = 1.0;
-                }
+                double resolution = costmap_->getResolution();
+                double wx, wy;
+                costmap_->mapToWorld(0, 0, wx, wy);
+                customized_costmap_.info.origin.position.x = wx - resolution / 2;
+                customized_costmap_.info.origin.position.y = wy - resolution / 2;
+                customized_costmap_.info.origin.position.z = 0.01;
+                customized_costmap_.info.origin.orientation.w = 1.0;
             }
 
             if (   isCrashed(reward)
@@ -663,67 +639,22 @@ namespace neuro_local_planner_wrapper
                     start_time_ = ros::Time::now().toSec();
             }
 
-            // add global plan as white pixel with some gradient to indicate its direction
-            addGlobalPlan();
-
-            // inspect goal visibility
-            processGoalVisibility();
-
-            // add laser scan points as invalid/black pixel
-            //addLaserScanPoints(laser_scan);
             {
                 boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
 
-                tf::StampedTransform transform;
-                try
-                {
-                    tf_->lookupTransform(header.frame_id, customized_costmap_.header.frame_id, ros::Time(0), transform);
-                }
-                catch (tf::TransformException ex)
-                {
-                    ROS_ERROR("%s", ex.what());
-                    return;
-                }
+                // add the robot with the orientation as a arrow
+                addRobot();
 
+                // add global plan as white pixel with some gradient to indicate its direction
+                addGlobalPlan();
 
-                unsigned int mx, my;
-                double wx, wy;
-                unsigned int value;
-                for (unsigned int i = 0; i < customized_costmap_.info.height; i++)
-                {
-                    for (unsigned int j = 0; j < customized_costmap_.info.width; j++)
-                    {
-                        wx = customized_costmap_.info.origin.position.x + (j + 0.5)*customized_costmap_.info.resolution;
-                        wy = customized_costmap_.info.origin.position.y + (i + 0.5)*customized_costmap_.info.resolution;
-                        tf::Point p(wx, wy, 0);
-                        p = transform(p);
-                        if (costmap_->worldToMap(p.x(), p.y(), mx, my))
-                        {
-                            value = costmap_->getCost(mx, my);
-                            if (value == 255)
-                                customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
-                            else if (value >= 254)
-                                customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
-                        }
-                    }
-                }
-/*
-                unsigned char* data = costmap_->getCharMap();
-                for (unsigned int i = 0; i < customized_costmap_.data.size(); i++)
-                {
-                    if (data[i] == 255)
-                        ;
-                    else if (data[i] >= 252)
-                        customized_costmap_.data[i] = cost_translation_table_[ data[ i ]];
-                }
-*/
-//                memcpy((void *)customized_costmap_.data.data(), (void *)costmap_->getCharMap(), customized_costmap_.data.size());
-//                customized_costmap_.data = costmap_data;
-//                for (int i = 0; i < customized_costmap_.data.size(); i++)
-//                {
-//                    //ROS_ERROR("%d",(unsigned char) customized_costmap_.data[i]);
-//                    customized_costmap_.data[i] = local_costmap.data[i];
-//                }
+                // inspect goal visibility
+                processGoalVisibility();
+
+                // add laser scan points as invalid/black pixel
+                //addLaserScanPoints(laser_scan);
+
+                addCostmap(header);
 
             }
 
@@ -762,7 +693,6 @@ namespace neuro_local_planner_wrapper
 
                 // increment seq for next costmap
                 transition_msg_.header.seq = transition_msg_.header.seq + 1;
-
             }
 
             // clear buffer
@@ -777,6 +707,88 @@ namespace neuro_local_planner_wrapper
         ROS_WARN("<<<%s()", __FUNCTION__);
     }
 
+    void NeuroLocalPlannerWrapper::addRobot()
+    {
+        double roll, pitch, yaw;
+        int goal_tolerance_in_pixel = (int)round(xy_goal_tolerance_ / (costmap_->getSizeInMetersX()/ costmap_->getSizeInCellsX()));
+        costmap_ros_->getRobotPose(current_pose_);
+        geometry_msgs::PoseStamped current_pose;
+        tf::poseStampedTFToMsg(current_pose_, current_pose);
+        geometry_msgs::PoseStamped current_pose_to_map;
+        try {
+            tf_->waitForTransform(  customized_costmap_.header.frame_id, current_pose.header.frame_id, ros::Time(0), ros::Duration(2.0));
+            tf_->transformPose(     customized_costmap_.header.frame_id, current_pose, current_pose_to_map);
+        } catch (tf::TransformException ex) {
+            ROS_ERROR("%s", ex.what());
+        }
+        //current_pose_.getBasis().getRPY(roll, pitch, yaw);
+        yaw = tf::getYaw(current_pose_to_map.pose.orientation);
+
+        // Draw Center
+        cv::Mat rawData(cv::Size(customized_costmap_.info.width, customized_costmap_.info.height), CV_8UC1, (void*)&(customized_costmap_.data[0]));
+
+        cv::Point center(customized_costmap_.info.width/2, customized_costmap_.info.height/2);
+
+        DrawArrow(rawData, center, goal_tolerance_in_pixel, yaw, cv::Scalar(75));
+
+        cv::circle(rawData, center, goal_tolerance_in_pixel, cv::Scalar(75), -1);
+    }
+
+    void NeuroLocalPlannerWrapper::addCostmap(std_msgs::Header header)
+    {
+        tf::StampedTransform transform;
+        try
+        {
+            tf_->waitForTransform(header.frame_id, customized_costmap_.header.frame_id, ros::Time(0), ros::Duration(2.0));
+            tf_->lookupTransform(header.frame_id, customized_costmap_.header.frame_id, ros::Time(0), transform);
+        }
+        catch (tf::TransformException ex)
+        {
+            ROS_ERROR("%s", ex.what());
+            return;
+        }
+
+        unsigned int mx, my;
+        double wx, wy;
+        unsigned int value;
+        for (unsigned int i = 0; i < customized_costmap_.info.height; i++)
+        {
+            for (unsigned int j = 0; j < customized_costmap_.info.width; j++)
+            {
+                wx = customized_costmap_.info.origin.position.x + (j + 0.5)*customized_costmap_.info.resolution;
+                wy = customized_costmap_.info.origin.position.y + (i + 0.5)*customized_costmap_.info.resolution;
+                tf::Point p(wx, wy, 0);
+                p = transform(p);
+                if (costmap_->worldToMap(p.x(), p.y(), mx, my))
+                {
+                    value = costmap_->getCost(mx, my);
+                    if (value == 255)
+                        customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
+                    else if (value >= 254)
+                        customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
+                }
+            }
+        }
+/*
+        unsigned char* data = costmap_->getCharMap();
+        for (unsigned int i = 0; i < customized_costmap_.data.size(); i++)
+        {
+            if (data[i] == 255)
+                ;
+            else if (data[i] >= 252)
+                customized_costmap_.data[i] = cost_translation_table_[ data[ i ]];
+        }
+*/
+ /*
+        memcpy((void *)customized_costmap_.data.data(), (void *)costmap_->getCharMap(), customized_costmap_.data.size());
+        customized_costmap_.data = costmap_data;
+        for (int i = 0; i < customized_costmap_.data.size(); i++)
+        {
+            //ROS_ERROR("%d",(unsigned char) customized_costmap_.data[i]);
+            customized_costmap_.data[i] = local_costmap.data[i];
+        }
+*/
+    }
 
     // Helper function to generate the transition msg
     void NeuroLocalPlannerWrapper::addLaserScanPoints(const sensor_msgs::LaserScan& laser_scan)
@@ -910,9 +922,7 @@ namespace neuro_local_planner_wrapper
         }*/
 
         // add global blob
-        int goal_tolerance_in_pixel = (int)round(xy_goal_tolerance_ / (costmap_->getSizeInMetersX()
-                                                                  / costmap_->getSizeInCellsX()));
-
+        int goal_tolerance_in_pixel = (int)round(xy_goal_tolerance_ / (costmap_->getSizeInMetersX()/ costmap_->getSizeInCellsX()));
 #if 0
         geometry_msgs::Point blob_position_map_coordinate;
 
@@ -977,8 +987,27 @@ namespace neuro_local_planner_wrapper
                         / costmap_->getSizeInMetersX()) * customized_costmap_.info.width - 0.5);
         goal_y = (int)round(((goal_pose_robot_base_frame.pose.position.y - customized_costmap_.info.origin.position.y)
                         / costmap_->getSizeInMetersY()) * customized_costmap_.info.height - 0.5);
+#define _DRAW_CIRCLE_
+#define _DRAW_ARROW_
+        geometry_msgs::PoseStamped current_pose;
+        tf::poseStampedTFToMsg(current_pose_, current_pose);
+        geometry_msgs::PoseStamped goal_pose_to_map;
+        try
+        {
+            tf_->waitForTransform(  customized_costmap_.header.frame_id, goal_position.header.frame_id,
+                                    ros::Time(0), ros::Duration(2.0));
+            tf_->transformPose(customized_costmap_.header.frame_id, goal_position, goal_pose_to_map);
+        }
+        catch (tf::TransformException ex)
+        {
+            ROS_ERROR("%s", ex.what());
+        }
+        cv::Mat rawData(cv::Size(customized_costmap_.info.width, customized_costmap_.info.height), CV_8UC1, (void*)&(customized_costmap_.data[0]));
+        double goal_yaw = tf::getYaw(goal_pose_to_map.pose.orientation);
+        cv::Point goal_to_map(goal_x, goal_y);
 
-        int pixel_to_blob_center;
+#ifdef _DRAW_CIRCLE_
+//        int pixel_to_blob_center;
 //        for (int x = (int)(goal_x - goal_tolerance_in_pixel); x <=
 //                goal_x + goal_tolerance_in_pixel; x++)
 //        {
@@ -997,24 +1026,12 @@ namespace neuro_local_planner_wrapper
 //                }
 //            }
 //        }
-        geometry_msgs::PoseStamped current_pose;
-        tf::poseStampedTFToMsg(current_pose_, current_pose);
-        geometry_msgs::PoseStamped goal_pose_to_map;
-        try
-        {
-            tf_->waitForTransform(  customized_costmap_.header.frame_id, goal_position.header.frame_id,
-                                    ros::Time(0), ros::Duration(2.0));
-            tf_->transformPose(customized_costmap_.header.frame_id, goal_position, goal_pose_to_map);
-        }
-        catch (tf::TransformException ex)
-        {
-            ROS_ERROR("%s", ex.what());
-        }
-        cv::Mat rawData(cv::Size(customized_costmap_.info.width, customized_costmap_.info.height), CV_8UC1, (void*)&(customized_costmap_.data[0]));
-        double goal_yaw = tf::getYaw(goal_pose_to_map.pose.orientation);
-        cv::Point goal_to_map(goal_x, goal_y);
+        cv::circle(rawData, goal_to_map, goal_tolerance_in_pixel, cv::Scalar(0), -1);
+#endif
+#ifdef _DRAW_ARROW_
 
-        DrawArrow(rawData, goal_to_map, goal_yaw, cv::Scalar(0));
+        DrawArrow(rawData, goal_to_map, goal_tolerance_in_pixel, goal_yaw, cv::Scalar(0));
+#endif
 #endif
     }
 

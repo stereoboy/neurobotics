@@ -76,9 +76,13 @@ namespace neuro_local_planner_wrapper
 
             void callbackAction(geometry_msgs::Twist action);
 
+            void addRobot();
+
             void addLaserScanPoints(const sensor_msgs::LaserScan& laser_scan);
 
             void addGlobalPlan();
+
+            void addCostmap(std_msgs::Header header);
 
             void storeResult(const neuro_local_planner_wrapper::Transition& transition);
 
