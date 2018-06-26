@@ -82,12 +82,16 @@ namespace neuro_local_planner_wrapper
             private_nh.param("/robot_type", robot_type_str, std::string("holonomic"));
             yaw_constraint_flag_ = (robot_type_str.compare(std::string("nonholonomic")) == 0);
 
+            private_nh.param("/training_mode", training_mode_, true);
+
             private_nh.param("xy_goal_tolerance", xy_goal_tolerance_, 0.1);
             private_nh.param("yaw_goal_tolerance", yaw_goal_tolerance_, 0.1);
 
             private_nh.param("frame_interval", frame_interval_, 4);
             private_nh.param("transition_frame_interval", transition_frame_interval_, 1);
 
+            ROS_INFO("training_mode: %d", (int)training_mode_);
+            ROS_INFO("robot_type: %s", robot_type_str.c_str());
             ROS_INFO("xy_goal_tolerance: %f", xy_goal_tolerance_);
             ROS_INFO("yaw_goal_tolerance: %f", yaw_goal_tolerance_);
             ROS_INFO("frame_interval_: %d", frame_interval_);
@@ -371,7 +375,12 @@ namespace neuro_local_planner_wrapper
 
     bool NeuroLocalPlannerWrapper::isTimeOut(double& reward)
     {
-        if(ros::Time::now().toSec() - start_time_ > max_time_)
+        // No timeout in evaluation mode
+        if(!training_mode_)
+        {
+            return false;
+        }
+        else if(ros::Time::now().toSec() - start_time_ > max_time_)
         {
             ROS_ERROR("Time Out");
             return true;
@@ -1037,7 +1046,12 @@ namespace neuro_local_planner_wrapper
 
     bool NeuroLocalPlannerWrapper::isGoalInvisible(double& reward)
     {
-        if (goal_invisible_count > 8)
+        // No invisible test in evaluation mode
+        if(!training_mode_)
+        {
+            return false;
+        }
+        else if (goal_invisible_count > 8)
         {
             ROS_ERROR("Goal is invisible!");
             return true;
