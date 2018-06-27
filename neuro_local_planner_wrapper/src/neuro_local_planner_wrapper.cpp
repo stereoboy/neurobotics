@@ -314,7 +314,7 @@ namespace neuro_local_planner_wrapper
             // header
             transition_msg_.header.frame_id = customized_costmap_.header.frame_id;
             transition_msg_.header.stamp = customized_costmap_.header.stamp;
-            transition_msg_.header.seq = 0;
+            transition_msg_.header.seq = i; // prepare for incremental seq
 
             // info
             transition_msg_.width = customized_costmap_.info.width;
@@ -562,7 +562,8 @@ namespace neuro_local_planner_wrapper
     {
         ROS_WARN(">>>%s()", __FUNCTION__);
         clock_counter++;
-        if (clock_counter%frame_interval_ != 0)
+        if (training_mode_ && clock_counter%frame_interval_ != 0)
+        //if (clock_counter%frame_interval_ != 0)
             return;
 
         transition_frame_counter_++;
@@ -570,6 +571,7 @@ namespace neuro_local_planner_wrapper
         // Check for collision or goal reached
         if (is_running_)
         {
+            ROS_WARN("   %s() - run", __FUNCTION__);
             double reward = 0.0;
             bool          buffer_clear = false;
             unsigned char is_episode_finished = 0;
@@ -677,11 +679,22 @@ namespace neuro_local_planner_wrapper
             int transition_idx = transition_frame_counter_%transition_frame_interval_;
             neuro_local_planner_wrapper::Transition &transition_msg_ = transition_msg_vec_[transition_idx];
 
+            // publish transition message after four consecutive costmaps are available
+            if (transition_msg_.state_representation.size() == 0)
+            {
+                // add dummy costmaps
+                for (int i = 0; i < transition_depth_; i++)
+                {
+                    transition_msg_.state_representation.insert(transition_msg_.state_representation.end(),
+                                                                customized_costmap_.data.begin(),
+                                                                customized_costmap_.data.end());
+                }
+            }
+
             transition_msg_.state_representation.insert(transition_msg_.state_representation.end(),
                                                         customized_costmap_.data.begin(),
                                                         customized_costmap_.data.end());
 
-            // publish transition message after four consecutive costmaps are available
             if (transition_msg_.state_representation.size() > transition_msg_.width*
                                                             transition_msg_.height*
                                                             transition_msg_.depth)
@@ -701,7 +714,7 @@ namespace neuro_local_planner_wrapper
                 transition_msg_pub_.publish(transition_msg_);
 
                 // increment seq for next costmap
-                transition_msg_.header.seq = transition_msg_.header.seq + 1;
+                transition_msg_.header.seq = transition_msg_.header.seq + transition_frame_interval_;
             }
 
             // clear buffer
