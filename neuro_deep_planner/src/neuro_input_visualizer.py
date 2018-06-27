@@ -116,9 +116,14 @@ class VisualizerRunnable(object):
         #cv2.moveWindow('costmapx16', 100, 100)
         cv2.namedWindow('move_img')
         cv2.moveWindow('move_img', 100, 100)
+        counter = 0
         while True:
             if self.output is not None:
-                cv2.imshow('transition', cv2.resize(self.output.astype(np.uint8), (self.output.shape[1]*5, self.output.shape[0]*5)))
+                disp = cv2.resize(self.output.astype(np.uint8), (self.output.shape[1]*5, self.output.shape[0]*5))
+                cv2.imshow('transition', disp)
+                #cv2.imwrite('transition' + str(counter) + '.png', disp)
+                counter += 1
+                self.output = None
             #if self.costmap is not None:
             #    cv2.imshow('costmap', cv2.resize(self.costmap, (self.costmap.shape[1]*5, self.costmap.shape[0]*5)))
             #if self.costmaps is not None:

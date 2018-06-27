@@ -50,3 +50,9 @@ In the `move_base.launch.xml` file we can use the dummy local planner plugin by 
 And by commenting the following line right above:
 
     <param name="DWAPlannerROS/global_frame_id" value="$(arg odom_frame_id)"/>
+
+(Option) Run the Simulation for Training/Evaluation
+--------------
+
+    roslaunch neuro_stage_sim neuro_stage_sim.launch training_mode:=true (or training_mode:=false for evaluation mode)
+
