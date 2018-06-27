@@ -6,6 +6,11 @@ from ddpg import DDPG
 # For saving replay buffer
 import os
 import tensorflow as tf
+import datetime
+import math
+
+TIMEOUT = 60
+PRINT_INTERVAL = 10
 
 # Do we want to plot results during training
 PLOTTING = False         # Do we want to plot
@@ -46,14 +51,16 @@ def main():
     else:
         agent.noise_flag = True
 
-    #ACTION_BOUNDS = [[-0.4, 0.4], [-0.4, 0.4]]
-    #ACTION_BOUNDS = [[-0.4, 0.4], [-0.1, 0.1]]
-
     # For plotting
     currently_plotting = False
     goal_count = 0
     crash_count = 0
-    start_time = 0
+    start_time = rospy.get_time() # simulation speedup time
+
+
+    real_start_time = datetime.datetime.now() # real time
+    last_msg_time = datetime.datetime.now()
+    last_print_time = 0
 
     # Make sure the directory for the plotting exists
     if not tf.gfile.Exists(PLOT_PATH):
@@ -95,7 +102,19 @@ def main():
         # If we're not plotting results
         else:
             # If we have a new msg we might have to execute an action and need to put the new experience in the buffer
+            real_current_time = datetime.datetime.now()
+            if FLAGS.mode == 'train' and (real_current_time - last_msg_time).seconds >= TIMEOUT: 
+                rospy.logerr("It's been over 60 seconds since the last data came in.")
+                import sys
+                sys.exit()
+
+            elapsed_time = (real_current_time - real_start_time)
+            if elapsed_time.seconds - last_print_time >= PRINT_INTERVAL:
+                last_print_time = math.floor(elapsed_time.seconds/PRINT_INTERVAL)*PRINT_INTERVAL
+                rospy.logwarn("#################################################################### %s"%(elapsed_time))
+
             if ros_handler.new_msg():
+                last_msg_time = datetime.datetime.now()
                 if not ros_handler.is_episode_finished:
                     # Send back the action to execute
                     ros_handler.publish_action(agent.get_action(ros_handler.state))
