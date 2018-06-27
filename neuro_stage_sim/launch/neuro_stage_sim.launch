@@ -23,6 +23,10 @@
   <param name="/robot_type" value="holonomic"/>
   <param name="/use_sim_time" value="true"/>
 
+  <arg name="training_mode" default="true"/>
+  <param name="/training_mode" value="true"     if      ="$(arg training_mode)"/>
+  <param name="/training_mode" value="false"    unless  ="$(arg training_mode)"/>
+
   <!--  ******************** Stage ********************  -->
   <!--
         Publishes transforms:
