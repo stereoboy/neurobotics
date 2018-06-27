@@ -35,6 +35,10 @@ class ROSHandler:
         self.__new_setting_flag = False
         self.noise_flag = True
 
+        self.frame_interval = rospy.get_param("/move_base/NeuroLocalPlannerWrapper/frame_interval");
+        self.transition_frame_interval = rospy.get_param("/move_base/NeuroLocalPlannerWrapper/transition_frame_interval");
+
+
     def input_callback(self, transition_msg):
 
         # If msg is received for the first time adjust parameters
