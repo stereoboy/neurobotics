@@ -36,7 +36,7 @@ PLOT_STEP = 10
 
 class ActorNetwork:
 
-    def __init__(self, image_size, action_size, image_no, session, summary_writer, training_step_variable):
+    def __init__(self, map_input, action_size, session, summary_writer, training_step_variable):
         def getter_ema(ema):
             def ema_getter(getter, name, *args, **kwargs):
                 var = getter(name, *args, **kwargs)
@@ -46,6 +46,7 @@ class ActorNetwork:
             return ema_getter
 
         self.graph = session.graph
+        self.summary_merged = None
 
         with self.graph.as_default():
 
@@ -54,12 +55,11 @@ class ActorNetwork:
             self.summary_writer = summary_writer
 
             # Get input dimensions from ddpg
-            self.image_size = image_size
             self.action_size = action_size
-            self.image_no = image_no
 
             # Create actor network
-            self.map_input = tf.placeholder("float", [None, self.image_size, self.image_size, self.image_no], name="map_input")
+            self.map_input = map_input
+            tf.summary.scalar('map_input', tf.reduce_mean(self.map_input[0]))
             self.q_gradient_input = tf.placeholder("float", [None, action_size], name='q_gradient_input')
 
             with tf.variable_scope('actor/network') as scope:
@@ -155,10 +155,16 @@ class ActorNetwork:
         return out
 
     def train(self, q_gradient_batch, state_batch):
-
         # Train the actor net
-        self.sess.run(self.compute_ema, feed_dict={self.q_gradient_input: q_gradient_batch, self.map_input: state_batch})
-
+        if self.train_counter%100 == 0:
+            run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+            run_metadata = tf.RunMetadata()
+            summary, _ = self.sess.run([self.summary_merged, self.compute_ema], feed_dict={self.q_gradient_input: q_gradient_batch, self.map_input: state_batch},
+                                                                                options=run_options, run_metadata=run_metadata)
+            self.summary_writer.add_run_metadata(run_metadata, 'a step%d' % self.train_counter)
+            self.summary_writer.add_summary(summary, self.train_counter)
+        else:
+            self.sess.run(self.compute_ema, feed_dict={self.q_gradient_input: q_gradient_batch, self.map_input: state_batch})
         self.train_counter += 1
 
     def get_action(self, state):
@@ -166,8 +172,16 @@ class ActorNetwork:
         return self.sess.run(self.action_output, feed_dict={self.map_input: [state]})[0]
 
     def evaluate(self, state_batch):
-
         # Get an action batch
+#        if self.train_counter % PLOT_STEP == 0:
+#            run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+#            run_metadata = tf.RunMetadata()
+#            summary, actions = self.sess.run([self.summary_merged, self.action_output], feed_dict={self.map_input: state_batch},
+#                                                                            options=run_options,
+#                                                                            run_metadata=run_metadata)
+#            self.summary_writer.add_summary(summary)
+#        else:
+#            actions = self.sess.run(self.action_output, feed_dict={self.map_input: state_batch})
         actions = self.sess.run(self.action_output, feed_dict={self.map_input: state_batch})
 
         # Create summaries for the actions
@@ -185,8 +199,8 @@ class ActorNetwork:
             summary_action_1 = tf.Summary(value=[tf.Summary.Value(tag='actions_mean[1]',
                                                                   simple_value=np.asscalar(
                                                                       self.actions_mean_plot[1]))])
-            self.summary_writer.add_summary(summary_action_0, self.train_counter)
-            self.summary_writer.add_summary(summary_action_1, self.train_counter)
+            #self.summary_writer.add_summary(summary_action_0, self.train_counter)
+            #self.summary_writer.add_summary(summary_action_1, self.train_counter)
 
             self.actions_mean_plot = [0, 0]
 
@@ -212,8 +226,8 @@ class ActorNetwork:
             summary_target_action_1 = tf.Summary(value=[tf.Summary.Value(tag='target_actions_mean[1]',
                                                                          simple_value=np.asscalar(
                                                                              self.target_actions_mean_plot[1]))])
-            self.summary_writer.add_summary(summary_target_action_0, self.train_counter)
-            self.summary_writer.add_summary(summary_target_action_1, self.train_counter)
+            #self.summary_writer.add_summary(summary_target_action_0, self.train_counter)
+            #self.summary_writer.add_summary(summary_target_action_1, self.train_counter)
 
             self.target_actions_mean_plot = [0, 0]
 

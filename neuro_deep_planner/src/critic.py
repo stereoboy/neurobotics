@@ -40,7 +40,7 @@ PLOT_STEP = 10
 
 class CriticNetwork:
 
-    def __init__(self, image_size, action_size, image_no, session, summary_writer):
+    def __init__(self, map_input, action_size, session, summary_writer):
         def getter_ema(ema):
             def ema_getter(getter, name, *args, **kwargs):
                 var = getter(name, *args, **kwargs)
@@ -58,12 +58,10 @@ class CriticNetwork:
             self.summary_writer = summary_writer
 
             # Get input dimensions from ddpg
-            self.image_size = image_size
             self.action_size = action_size
-            self.image_no = image_no
 
             # Create critic network
-            self.map_input = tf.placeholder("float", [None, image_size, image_size, image_no], name='map_input')
+            self.map_input = map_input
             self.action_input = tf.placeholder("float", [None, action_size], name="action_input")
             self.y_input = tf.placeholder("float", [None, 1], name="y_input")
 
@@ -168,25 +166,35 @@ class CriticNetwork:
     def train(self, y_batch, state_batch, action_batch):
 
         # Run optimizer and compute some summary values
-        td_error_value, _ = self.sess.run([self.td_error, self.compute_ema], feed_dict={self.y_input: y_batch,
-                                                                                      self.map_input: state_batch,
-                                                                                      self.action_input: action_batch})
+        if self.train_counter%100 == 0:
+            run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+            run_metadata = tf.RunMetadata()
+
+            summary, td_error_value, _ = self.sess.run([self.summary_merged, self.td_error, self.compute_ema],
+                    feed_dict={self.y_input: y_batch, self.map_input: state_batch, self.action_input: action_batch},
+                    options=run_options, run_metadata=run_metadata)
+            self.summary_writer.add_run_metadata(run_metadata, 'c step%d' % self.train_counter)
+            self.summary_writer.add_summary(summary, self.train_counter)
+        else:
+            td_error_value, _ = self.sess.run([self.td_error, self.compute_ema], feed_dict={self.y_input: y_batch,
+                                                                                          self.map_input: state_batch,
+                                                                                          self.action_input: action_batch})
 
 
         # Increment the td error plot variable for td error average plotting
         self.td_error_plot += td_error_value
 
         # Only save data every 10 steps
-        if self.train_counter % PLOT_STEP == 0:
-
-            self.td_error_plot /= PLOT_STEP
-
-            # Add td error to the summary writer
-            summary = tf.Summary(value=[tf.Summary.Value(tag='td_error_mean',
-                                                         simple_value=np.asscalar(self.td_error_plot))])
-            self.summary_writer.add_summary(summary, self.train_counter)
-
-            self.td_error_plot = 0.0
+#        if self.train_counter % PLOT_STEP == 0:
+#
+#            self.td_error_plot /= PLOT_STEP
+#
+#            # Add td error to the summary writer
+#            summary = tf.Summary(value=[tf.Summary.Value(tag='td_error_mean',
+#                                                         simple_value=np.asscalar(self.td_error_plot))])
+#            self.summary_writer.add_summary(summary, self.train_counter)
+#
+#            self.td_error_plot = 0.0
 
         self.train_counter += 1
 
@@ -201,20 +209,20 @@ class CriticNetwork:
         self.action_grads_mean_plot += action_grads_mean
 
         # Only save data every 10 steps
-        if self.train_counter % PLOT_STEP == 0:
-
-            self.action_grads_mean_plot /= PLOT_STEP
-
-            summary_actor_grads_0 = tf.Summary(value=[tf.Summary.Value(tag='action_grads_mean[0]',
-                                                                       simple_value=np.asscalar(
-                                                                           self.action_grads_mean_plot[0]))])
-            summary_actor_grads_1 = tf.Summary(value=[tf.Summary.Value(tag='action_grads_mean[1]',
-                                                                       simple_value=np.asscalar(
-                                                                           self.action_grads_mean_plot[1]))])
-            self.summary_writer.add_summary(summary_actor_grads_0, self.train_counter)
-            self.summary_writer.add_summary(summary_actor_grads_1, self.train_counter)
-
-            self.action_grads_mean_plot = [0, 0]
+#        if self.train_counter % PLOT_STEP == 0:
+#
+#            self.action_grads_mean_plot /= PLOT_STEP
+#
+#            summary_actor_grads_0 = tf.Summary(value=[tf.Summary.Value(tag='action_grads_mean[0]',
+#                                                                       simple_value=np.asscalar(
+#                                                                           self.action_grads_mean_plot[0]))])
+#            summary_actor_grads_1 = tf.Summary(value=[tf.Summary.Value(tag='action_grads_mean[1]',
+#                                                                       simple_value=np.asscalar(
+#                                                                           self.action_grads_mean_plot[1]))])
+#            self.summary_writer.add_summary(summary_actor_grads_0, self.train_counter)
+#            self.summary_writer.add_summary(summary_actor_grads_1, self.train_counter)
+#
+#            self.action_grads_mean_plot = [0, 0]
 
         return q_gradients
 

@@ -49,9 +49,12 @@ MAX_NOISE_STEP = 3000000
 
 class DDPG:
 
-    def __init__(self, action_bounds, data_path):
+    def __init__(self, mode, action_bounds, data_path):
+
+        self.mode = mode
 
         self.data_path = data_path
+
         # path to tensorboard data
         self.tflog_path = data_path + '/tf_logs'
 
@@ -108,17 +111,27 @@ class DDPG:
             self.summary_writer = tf.summary.FileWriter(self.tflog_path)
 
             # Initialize actor and critic networks
+            self.map_input = tf.placeholder("float", [None, self.height, self.height, self.depth], name="map_input")
             self.training_step_variable = tf.Variable(0, name='global_step', trainable=False)
-            self.actor_network = ActorNetwork(self.height, self.action_dim, self.depth, self.session,
+            self.actor_network = ActorNetwork(self.map_input, self.action_dim, self.session,
                                               self.summary_writer, self.training_step_variable)
-            self.critic_network = CriticNetwork(self.height, self.action_dim, self.depth, self.session,
+            self.critic_network = CriticNetwork(self.map_input, self.action_dim, self.session,
                                                 self.summary_writer)
+
+            self.summary_merged = tf.summary.merge_all()
 
             # Initialize the saver to save the network params
             self.saver = tf.train.Saver()
 
             # initialize the experience data manger
-            self.data_manager = DataManager(BATCH_SIZE, self.experience_path, self.session)
+            if self.mode == 'train':
+                self.data_manager = DataManager(BATCH_SIZE, self.experience_path, self.session)
+
+            self.actor_network.summary_merged = self.summary_merged
+            self.critic_network.summary_merged = self.summary_merged
+
+            # After the graph has been filled add it to the summary writer
+            self.summary_writer.add_graph(self.graph)
 
             # Uncomment if collecting a buffer for the autoencoder
             # self.buffer = deque()
@@ -151,8 +164,7 @@ class DDPG:
             # Flag: don't learn the first experience
             self.first_experience = True
 
-            # After the graph has been filled add it to the summary writer
-            self.summary_writer.add_graph(self.graph)
+
 
     def train(self):
         # Check if the buffer is big enough to start training

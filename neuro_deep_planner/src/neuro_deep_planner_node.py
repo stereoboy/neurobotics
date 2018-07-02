@@ -44,7 +44,7 @@ def main():
     print("mode: {}".format(FLAGS.mode))
     print("###################################################################")
 
-    agent = DDPG(action_bounds_dict[ros_handler.robot_type], FLAGS.dir)
+    agent = DDPG(FLAGS.mode, action_bounds_dict[ros_handler.robot_type], FLAGS.dir)
 
     import json
     data = {'frame_interval': ros_handler.frame_interval, 'transition_frame_interval': ros_handler.transition_frame_interval}
@@ -126,7 +126,8 @@ def main():
                     ros_handler.publish_action(agent.get_action(ros_handler.state))
 
                 # Safe the past state and action + the reward and new state into the replay buffer
-                agent.set_experience(ros_handler.state, ros_handler.reward, ros_handler.is_episode_finished)
+                if FLAGS.mode == 'train':
+                    agent.set_experience(ros_handler.state, ros_handler.reward, ros_handler.is_episode_finished)
 
             elif ros_handler.new_setting():
 
