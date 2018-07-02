@@ -102,8 +102,6 @@ namespace neuro_local_planner_wrapper
             state_pub_ = private_nh.advertise<std_msgs::Bool>("new_round", 1);
 
             //laser_scan_sub_ = private_nh.subscribe("/scan", 1000, &NeuroLocalPlannerWrapper::buildStateRepresentation, this);
-            local_costmap_sub_ = private_nh.subscribe("/move_base/local_costmap/costmap", 1000, &NeuroLocalPlannerWrapper::cbLocalCostmap, this);
-            local_costmap_update_sub_ = private_nh.subscribe("/move_base/local_costmap/costmap_updates", 1000, &NeuroLocalPlannerWrapper::cbLocalCostmapUpdate, this);
 
             customized_costmap_pub_ = private_nh.advertise<nav_msgs::OccupancyGrid>("customized_costmap", 1);
 
@@ -251,6 +249,7 @@ namespace neuro_local_planner_wrapper
     bool NeuroLocalPlannerWrapper::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
     {
         //ROS_WARN("<<<%s()", __FUNCTION__);
+        buildStateRepresentation();
         return true;
     }
 
@@ -269,7 +268,8 @@ namespace neuro_local_planner_wrapper
             return false;
         }
 
-        //if(latchedStopRotateController_.isGoalReached(&planner_util_, odom_helper_, current_pose_)) {
+        // Don't return true. This module do not follow the standard implementation of local planner!!!
+        /*
         if(isAtGoal(reward)) {
             ROS_INFO("Goal reached");
             return true;
@@ -277,6 +277,8 @@ namespace neuro_local_planner_wrapper
             //ROS_INFO("Goal Not reached");
             return false;
         }
+        */
+        return false;
     }
 
 
@@ -544,23 +546,12 @@ namespace neuro_local_planner_wrapper
         action_pub_.publish(action_);
     }
 
-    void NeuroLocalPlannerWrapper::cbLocalCostmap(nav_msgs::OccupancyGrid grid)
-    {
-        ROS_WARN(">>>%s()", __FUNCTION__);
-        //customized_costmap_.info = grid.info;
-        buildStateRepresentation(grid.header, grid.data);
-    }
-
-    void NeuroLocalPlannerWrapper::cbLocalCostmapUpdate(map_msgs::OccupancyGridUpdate grid_update)
-    {
-        ROS_WARN(">>>%s()", __FUNCTION__);
-        buildStateRepresentation(grid_update.header, grid_update.data);
-    }
-
     // Callback function for the subscriber to the laser scan
-    void NeuroLocalPlannerWrapper::buildStateRepresentation(std_msgs::Header header, std::vector<int8_t> costmap_data)
+    void NeuroLocalPlannerWrapper::buildStateRepresentation()
     {
         ROS_WARN(">>>%s()", __FUNCTION__);
+        ros::Time begin, end;
+        begin = ros::Time::now();
         clock_counter++;
         if (training_mode_ && clock_counter%frame_interval_ != 0)
         //if (clock_counter%frame_interval_ != 0)
@@ -573,7 +564,8 @@ namespace neuro_local_planner_wrapper
         {
             ROS_WARN("   %s() - run", __FUNCTION__);
             double reward = 0.0;
-            bool          buffer_clear = false;
+            bool          flag_buffer_clear = false;
+            bool          flag_new_round = false;
             unsigned char is_episode_finished = 0;
 
             // clear costmap/set all pixel gray
@@ -582,7 +574,7 @@ namespace neuro_local_planner_wrapper
             customized_costmap_.data = data;
 
             // to_delete: ------
-            customized_costmap_.header.stamp = header.stamp;
+            customized_costmap_.header.stamp = ros::Time::now();
 
             if (customized_costmap_.header.frame_id.compare("odom") == 0)
             {
@@ -609,12 +601,10 @@ namespace neuro_local_planner_wrapper
                 setZeroAction();
 
                 // Publish that a new round can be started with the stage_sim_bot
-                std_msgs::Bool new_round;
-                new_round.data = 1;
-                state_pub_.publish(new_round);
+                flag_new_round = true;
 
                 is_episode_finished = 1;
-                buffer_clear = true;
+                flag_buffer_clear = true;
                 goal_invisible_count = 0;
                 clock_counter = 0;
                 transition_frame_counter_ = 0;
@@ -631,12 +621,10 @@ namespace neuro_local_planner_wrapper
                 setZeroAction();
 
                 // Publish that a new round can be started with the stage_sim_bot
-                std_msgs::Bool new_round;
-                new_round.data = 1;
-                state_pub_.publish(new_round);
+                flag_new_round = true;
 
                 is_episode_finished = 0;
-                buffer_clear = true;
+                flag_buffer_clear = true;
                 goal_invisible_count = 0;
                 clock_counter = 0;
                 transition_frame_counter_ = 0;
@@ -651,7 +639,12 @@ namespace neuro_local_planner_wrapper
             }
 
             {
+                ROS_WARN(">>>%s():%d", __FUNCTION__, __LINE__);
+                ros::Time b, e;
+                b = ros::Time::now();
                 boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
+                e = ros::Time::now();
+                ROS_WARN("<<<%s():%d - elapsed time: %f", __FUNCTION__, __LINE__, (e - b).toSec());
 
                 // add the robot with the orientation as a arrow
                 addRobot();
@@ -665,8 +658,10 @@ namespace neuro_local_planner_wrapper
                 // add laser scan points as invalid/black pixel
                 //addLaserScanPoints(laser_scan);
 
-                addCostmap(header);
+                addCostmap();
 
+                e = ros::Time::now();
+                ROS_WARN("<<<%s():%d - elapsed time: %f", __FUNCTION__, __LINE__, (e - b).toSec());
             }
 
             // publish customized costmap for visualization
@@ -718,15 +713,23 @@ namespace neuro_local_planner_wrapper
             }
 
             // clear buffer
-            if (buffer_clear)
+            if (flag_buffer_clear)
             {
                 for (int i = 0; i < transition_frame_interval_; i++)
                 {
                     transition_msg_vec_[i].state_representation.clear();
                 }
             }
+                // Publish that a new round can be started with the stage_sim_bot
+            if (flag_new_round)
+            {
+                std_msgs::Bool new_round;
+                new_round.data = 1;
+                state_pub_.publish(new_round);
+            }
         }
-        ROS_WARN("<<<%s()", __FUNCTION__);
+        end = ros::Time::now();
+        ROS_WARN("<<<%s() - elapsed time: %f", __FUNCTION__, (end - begin).toSec());
     }
 
     void NeuroLocalPlannerWrapper::addRobot()
@@ -756,13 +759,17 @@ namespace neuro_local_planner_wrapper
         cv::circle(rawData, center, goal_tolerance_in_pixel, cv::Scalar(75), -1);
     }
 
-    void NeuroLocalPlannerWrapper::addCostmap(std_msgs::Header header)
+    void NeuroLocalPlannerWrapper::addCostmap()
     {
+        ROS_WARN(">>>%s()", __FUNCTION__);
+        ros::Time begin, end;
+        begin = ros::Time::now();
+
         tf::StampedTransform transform;
         try
         {
-            tf_->waitForTransform(header.frame_id, customized_costmap_.header.frame_id, ros::Time(0), ros::Duration(2.0));
-            tf_->lookupTransform(header.frame_id, customized_costmap_.header.frame_id, ros::Time(0), transform);
+            tf_->waitForTransform(costmap_ros_->getGlobalFrameID(), customized_costmap_.header.frame_id, ros::Time(0), ros::Duration(2.0));
+            tf_->lookupTransform(costmap_ros_->getGlobalFrameID(), customized_costmap_.header.frame_id, ros::Time(0), transform);
         }
         catch (tf::TransformException ex)
         {
@@ -810,6 +817,8 @@ namespace neuro_local_planner_wrapper
             customized_costmap_.data[i] = local_costmap.data[i];
         }
 */
+        end = ros::Time::now();
+        ROS_WARN("<<<%s() - elapsed time: %f", __FUNCTION__, (end - begin).toSec());
     }
 
     // Helper function to generate the transition msg

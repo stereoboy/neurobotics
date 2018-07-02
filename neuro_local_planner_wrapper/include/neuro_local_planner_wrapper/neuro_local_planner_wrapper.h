@@ -53,12 +53,7 @@ namespace neuro_local_planner_wrapper
 
         private:
 
-            // Callback function for the subscriber to laser scan
-            void cbLocalCostmap(nav_msgs::OccupancyGrid grid);
-
-            void cbLocalCostmapUpdate(map_msgs::OccupancyGridUpdate grid_update);
-
-            void buildStateRepresentation(std_msgs::Header header, std::vector<int8_t> costmap_data);
+            void buildStateRepresentation();
 
             bool isCrashed(double& reward);
 
@@ -82,7 +77,7 @@ namespace neuro_local_planner_wrapper
 
             void addGlobalPlan();
 
-            void addCostmap(std_msgs::Header header);
+            void addCostmap();
 
             void storeResult(const neuro_local_planner_wrapper::Transition& transition);
 
