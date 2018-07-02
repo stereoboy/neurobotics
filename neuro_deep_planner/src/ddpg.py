@@ -74,7 +74,9 @@ class DDPG:
         self.action_bounds = action_bounds
 
         # Initialize our session
-        self.session = tf.Session()
+#        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
+#        self.session = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+        self.session = tf.InteractiveSession()
         self.graph = self.session.graph
 
         with self.graph.as_default():
