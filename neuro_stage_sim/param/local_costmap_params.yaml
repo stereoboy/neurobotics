@@ -1,8 +1,11 @@
 local_costmap:
    global_frame: odom
    robot_base_frame: /base_footprint
-   update_frequency: 20.0
-   publish_frequency: 20.0
+   # look at the source code of updateMap(...) in navigation/costmap_2d/src/costmap_2d_ros.cpp navigation package
+   # active publish_frequency is dependent on update_frequency. It cannot exceed the update frequency. but set it up slight larger than update_frequency
+   update_frequency: 10.0
+   publish_frequency: 11.0
+   #######################
    static_map: false
    rolling_window: true
 
