@@ -2,6 +2,7 @@
     ROS navigation stack with velocity smoother and safety (reactive) controller
 -->
 <launch>
+  <arg name="training_mode" default="true"/>
 
   <arg name="odom_topic" default="odom" />
   <arg name="laser_topic" default="scan" />
@@ -11,8 +12,10 @@
     <rosparam file="$(find neuro_stage_sim)/param/costmap_common_params.yaml" command="load" ns="local_costmap" />
     <rosparam file="$(find neuro_stage_sim)/param/local_costmap_params.yaml" command="load" />
     <rosparam file="$(find neuro_stage_sim)/param/global_costmap_params.yaml" command="load" />
-    <rosparam file="$(find neuro_stage_sim)/param/neuro_local_planner_params.yaml" command="load" />
-    <rosparam file="$(find neuro_stage_sim)/param/move_base_params.yaml" command="load" />
+    <rosparam file="$(find neuro_stage_sim)/param/neuro_local_planner_params.yaml" command="load" unless  ="$(arg training_mode)"/>
+    <rosparam file="$(find neuro_stage_sim)/param/neuro_local_planner_params_train.yaml" command="load" if      ="$(arg training_mode)" />
+    <rosparam file="$(find neuro_stage_sim)/param/move_base_params.yaml" command="load" unless  ="$(arg training_mode)"/>
+    <rosparam file="$(find neuro_stage_sim)/param/move_base_params_train.yaml" command="load" if      ="$(arg training_mode)"/>
     <rosparam file="$(find neuro_stage_sim)/param/global_planner_params.yaml" command="load" />
     <rosparam file="$(find neuro_stage_sim)/param/navfn_global_planner_params.yaml" command="load" />
 

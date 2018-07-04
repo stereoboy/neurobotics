@@ -178,7 +178,6 @@ namespace neuro_local_planner_wrapper
             double start_time_;
 
             // frame interval and transition depth
-            int frame_interval_;                  // frame interval
             long long transition_frame_counter_;
             int transition_frame_interval_;       // interval btw frames in transition
             int transition_depth_;                // the number of frames for one transition

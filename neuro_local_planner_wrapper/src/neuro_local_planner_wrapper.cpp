@@ -54,7 +54,7 @@ namespace neuro_local_planner_wrapper
 
     // Constructor
     NeuroLocalPlannerWrapper::NeuroLocalPlannerWrapper() : initialized_(false), yaw_constraint_flag_(false),
-                                                           frame_interval_(4), transition_frame_counter_(0),
+                                                           transition_frame_counter_(0),
                                                            transition_frame_interval_(1), transition_depth_(4),
                                                            blp_loader_("nav_core", "nav_core::BaseLocalPlanner") {}
 
@@ -87,14 +87,12 @@ namespace neuro_local_planner_wrapper
             private_nh.param("xy_goal_tolerance", xy_goal_tolerance_, 0.1);
             private_nh.param("yaw_goal_tolerance", yaw_goal_tolerance_, 0.1);
 
-            private_nh.param("frame_interval", frame_interval_, 4);
             private_nh.param("transition_frame_interval", transition_frame_interval_, 1);
 
             ROS_INFO("training_mode: %d", (int)training_mode_);
             ROS_INFO("robot_type: %s", robot_type_str.c_str());
             ROS_INFO("xy_goal_tolerance: %f", xy_goal_tolerance_);
             ROS_INFO("yaw_goal_tolerance: %f", yaw_goal_tolerance_);
-            ROS_INFO("frame_interval_: %d", frame_interval_);
             ROS_INFO("transition_frame_interval_: %d", transition_frame_interval_);
 
 
@@ -553,9 +551,6 @@ namespace neuro_local_planner_wrapper
         ros::Time begin, end;
         begin = ros::Time::now();
         clock_counter++;
-        if (training_mode_ && clock_counter%frame_interval_ != 0)
-        //if (clock_counter%frame_interval_ != 0)
-            return;
 
         transition_frame_counter_++;
 

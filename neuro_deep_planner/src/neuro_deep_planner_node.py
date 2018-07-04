@@ -47,7 +47,7 @@ def main():
     agent = DDPG(FLAGS.mode, action_bounds_dict[ros_handler.robot_type], FLAGS.dir)
 
     import json
-    data = {'frame_interval': ros_handler.frame_interval, 'transition_frame_interval': ros_handler.transition_frame_interval}
+    data = {'controller_frequency': ros_handler.controller_frequency, 'transition_frame_interval': ros_handler.transition_frame_interval}
     with open(os.path.join( agent.data_path, 'configuration.txt'), 'w') as f:
         json.dump(data, f, ensure_ascii=False)
 
