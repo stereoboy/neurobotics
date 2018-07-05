@@ -1,11 +1,12 @@
 import tensorflow as tf
 import numpy as np
-
+import itertools
+import os
+import glob
 
 # Parameters:
 NUM_EXPERIENCES = 200	    # How many experiences stored per file
 MIN_FILE_NUM = 10           # How many files at minimum do we need for training
-PRE_STORED_DATA_FILES = 0   # How many files are already stored in our Data folder
 
 MIN_FILES_IN_QUEUE = 10     # Files are added when this Number is reached
 NEW_FILES_TO_ADD = 200      # How many files are added to the fifo file queue
@@ -30,7 +31,12 @@ class DataManager:
             self.experience_path = p_experience_path
 
             # set file counter to number of pre-stored files
-            self.file_counter = PRE_STORED_DATA_FILES
+            print("[DataManager] check the prestored experiences")
+            prev_data_list = glob.glob(os.path.join(p_experience_path, "data_*.tfrecords"))
+            #for name in prev_data_list:
+            #    print(name)
+            self.file_counter = len(prev_data_list)
+            print("[DataManager] self.file_counter: {}".format(self.file_counter))
 
             # set experience counter to 0 (will be increased until number of experiences per file is reached)
             self.experience_counter = 0
@@ -39,15 +45,16 @@ class DataManager:
             self.filename_queue = tf.FIFOQueue(capacity=1000, dtypes=[tf.string])
 
             # enqueue filename operation with placeholder
-            self.filename_placeholder = tf.placeholder(tf.string)
-            self.enqueue_op = self.filename_queue.enqueue(self.filename_placeholder)
+            self.filename_placeholder = tf.placeholder(tf.string, shape=None, name='filenames')
+            self.enqueue_op = self.filename_queue.enqueue_many(self.filename_placeholder)
 
             # operation to return size of the experience file queue
             self.filename_queue_size = self.filename_queue.size()
 
             # put prexisiting files into the fifo filename queue
-            if PRE_STORED_DATA_FILES > 0:
-                self.enqueue_prestored_experiences()
+            if self.file_counter > 0:
+                #self.enqueue_prestored_experiences()
+                self.check_for_enqueue()
 
             # these variables are queried from outside
             self.state_batch, \
@@ -60,7 +67,9 @@ class DataManager:
             self.filename = self.experience_path + '/data_' + str(self.file_counter) + '.tfrecords'
 
             # init the write that writes the tfrecords
-            self.writer = tf.python_io.TFRecordWriter(self.filename)
+            self.write_buffer = []
+            #self.writer = tf.python_io.TFRecordWriter(self.filename)
+        print("[DataManager] Initialization Done")
 
     # checks if training can start
     def enough_data(self):
@@ -97,9 +106,10 @@ class DataManager:
         next_state = tf.reshape(next_state, [86, 86, 4])
 
         # batch shuffling is done in a seperate thread
+        # TODO tune the capacity in the following function call
         state_batch, action_batch, reward_batch, next_state_batch, is_episode_finished_batch = tf.train.shuffle_batch(
-            [state, action, reward, next_state, is_episode_finished], batch_size=self.batch_size, capacity=1000,
-            min_after_dequeue=0)
+            [state, action, reward, next_state, is_episode_finished], batch_size=self.batch_size, capacity=10000,
+            min_after_dequeue=100)
 
         return state_batch, action_batch, reward_batch, next_state_batch, is_episode_finished_batch
 
@@ -117,27 +127,37 @@ class DataManager:
         return state_batch, action_batch, reward_batch, next_state_batch, is_episode_finished_batch
 
     # enqueue the number of prestored experience files specified in PRE_STORED_DATA_FILES
-    def enqueue_prestored_experiences(self):
-        for i in range(0, PRE_STORED_DATA_FILES):
-            filename = self.experience_path + '/data_' + str(i) + '.tfrecords'
-
-            self.sess.run(self.enqueue_op, feed_dict={self.filename_placeholder: filename})
-            print i
-
-        print "enqueued " + str(PRE_STORED_DATA_FILES) + " filenames to filename queue"
+#    def enqueue_prestored_experiences(self):
+#        print("[DataManager] load prestored experiences...")
+#        filenames = []
+#        for i in range(0, self.file_counter):
+#            filenames.append(self.experience_path + '/data_' + str(i) + '.tfrecords')
+#
+#        self.sess.run(self.enqueue_op, feed_dict={self.filename_placeholder: filenames})
+#        print("[DataManager] enqueued " + str(self.file_counter) + " filenames to filename queue")
 
     # checks if new files need to be enqueued to the fifo file queue
     def check_for_enqueue(self):
-        if self.sess.run(self.filename_queue_size) < MIN_FILES_IN_QUEUE and self.file_counter >= 1:
-            print "enqueuing files"
+        queue_size = self.sess.run(self.filename_queue_size)
+        #print(">>>check_for_enqueue: queue_size: {}".format(queue_size))
+        if queue_size < MIN_FILES_IN_QUEUE and self.file_counter >= 1:
+            print("[DataManager] enqueuing files")
             if self.file_counter > 0:
-                random_array = np.random.randint(0, high=self.file_counter, size=NEW_FILES_TO_ADD)
+                # TODO tune the capacity in the following function call
+                #random_array = np.random.randint(low=max(0, self.file_counter - 10*NEW_FILES_TO_ADD), high=self.file_counter, size=NEW_FILES_TO_ADD)
+                random_array = np.random.randint(low=0, high=self.file_counter, size=NEW_FILES_TO_ADD)
             else:
                 random_array = np.zeros(NEW_FILES_TO_ADD, dtype=np.int8)
 
+            filenames = []
             for i in range(NEW_FILES_TO_ADD):
-                filename = self.experience_path + '/data_' + str(random_array[i]) + '.tfrecords'
-                self.sess.run(self.enqueue_op, feed_dict={self.filename_placeholder: filename})
+            #for i in range(max(0, self.file_counter - NEW_FILES_TO_ADD), self.file_counter):
+                filenames.append(self.experience_path + '/data_' + str(random_array[i]) + '.tfrecords')
+
+            if len(filenames) > 0:
+                print("file_counter:{}, filenames:{}".format(self.file_counter, filenames))
+                self.sess.run(self.enqueue_op, feed_dict={self.filename_placeholder: filenames})
+        #print("<<<")
 
     # stores experiences sequentially to files
     def store_experience_to_file(self, state, action, reward, next_state, is_episode_finished):
@@ -155,20 +175,30 @@ class DataManager:
             'is_episode_finished': tf.train.Feature(int64_list=tf.train.Int64List(value=[is_episode_finished]))
         }))
 
-        self.writer.write(example.SerializeToString())
+        #self.writer.write(example.SerializeToString())
+        self.write_buffer.append(example.SerializeToString())
 
         self.experience_counter += 1
 
         # store NUM_EXPERIENCES experiences per file
         if self.experience_counter == NUM_EXPERIENCES:
+            print("[DataManager] write experiences into file -------------------------------------------------------------")
+            try:
+                # create new file
+                self.filename = self.experience_path + '/data_' + str(self.file_counter) + '.tfrecords'
+                self.writer = tf.python_io.TFRecordWriter(self.filename)
 
-            # write the file to hdd
-            self.writer.close()
+                # write the file to hdd
+                for buf in self.write_buffer:
+                    self.writer.write(buf)
+                self.writer.close()
+            except:
+                if os.path.exists(self.filename):
+                    os.remove(self.filename)
+            print("[DataManager]------------------------------------------------------------------------------------------")
 
             # update counters
+            self.write_buffer = []
             self.experience_counter = 0
             self.file_counter += 1
 
-            # create new file
-            self.filename = self.experience_path + '/data_' + str(self.file_counter) + '.tfrecords'
-            self.writer = tf.python_io.TFRecordWriter(self.filename)
