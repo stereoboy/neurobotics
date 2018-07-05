@@ -165,10 +165,10 @@ namespace neuro_local_planner_wrapper
             max_time_ = 60*1.5;
 
             // counter after Goal gets invisible
-            goal_invisible_count = 0;
+            goal_invisible_count_ = 0;
             // We are now initialized
             initialized_ = true;
-            clock_counter = 0;
+            clock_counter_ = 0;
             transition_frame_counter_ = 0;
 
             if (cost_translation_table_ == NULL)
@@ -246,9 +246,11 @@ namespace neuro_local_planner_wrapper
     // Compute the velocity commands
     bool NeuroLocalPlannerWrapper::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
     {
-        //ROS_WARN("<<<%s()", __FUNCTION__);
-        buildStateRepresentation();
-        return true;
+        ROS_WARN("<<<%s()", __FUNCTION__);
+        bool ret = true;
+        ret = buildStateRepresentation();
+        ROS_WARN(">>>%s() %s", __FUNCTION__, (ret?"true":"false"));
+        return ret;
     }
 
 
@@ -267,15 +269,15 @@ namespace neuro_local_planner_wrapper
         }
 
         // Don't return true. This module do not follow the standard implementation of local planner!!!
-        /*
+
         if(isAtGoal(reward)) {
             ROS_INFO("Goal reached");
-            return true;
+            return buildStateRepresentation();
         } else {
             //ROS_INFO("Goal Not reached");
             return false;
         }
-        */
+
         return false;
     }
 
@@ -362,8 +364,6 @@ namespace neuro_local_planner_wrapper
         // TODO: could be solved nicer by using a different inscribed radius, then: >= 253
         if(costmap_->getCost((unsigned int)robot_x, (unsigned int)robot_y) >= threshold_crash)
         {
-            crash_counter_++;
-            ROS_ERROR("We crashed: %d", crash_counter_);
             reward = -1.0;
             return true;
         }
@@ -430,8 +430,6 @@ namespace neuro_local_planner_wrapper
         // Check if the robot has reached the goal
         if(condition)
         {
-            goal_counter_++;
-            ROS_ERROR("We reached the goal: %d", goal_counter_);
             reward = 10.0;
             return true;
         }
@@ -544,23 +542,54 @@ namespace neuro_local_planner_wrapper
         action_pub_.publish(action_);
     }
 
+    void NeuroLocalPlannerWrapper::processOnSuccess()
+    {
+        // New episode so restart the time count
+        start_time_ = ros::Time::now().toSec();
+
+        // This is the last transition published in this episode
+        is_running_ = false;
+
+        // Stop moving
+        setZeroAction();
+
+        goal_invisible_count_ = 0;
+        clock_counter_ = 0;
+        transition_frame_counter_ = 0;
+    }
+
+    void NeuroLocalPlannerWrapper::processOnFailure()
+    {
+        // New episode so restart the time count
+        start_time_ = ros::Time::now().toSec();
+
+        // This is the last transition published in this episode
+        is_running_ = false;
+
+        // Stop moving
+        setZeroAction();
+
+        goal_invisible_count_ = 0;
+        clock_counter_ = 0;
+        transition_frame_counter_ = 0;
+    }
+
     // Callback function for the subscriber to the laser scan
-    void NeuroLocalPlannerWrapper::buildStateRepresentation()
+    bool NeuroLocalPlannerWrapper::buildStateRepresentation()
     {
         ROS_WARN(">>>%s()", __FUNCTION__);
+        bool ret = true;
         ros::Time begin, end;
         begin = ros::Time::now();
-        clock_counter++;
+        clock_counter_++;
 
         transition_frame_counter_++;
 
         // Check for collision or goal reached
         if (is_running_)
         {
-            ROS_WARN("   %s() - run", __FUNCTION__);
             double reward = 0.0;
             bool          flag_buffer_clear = false;
-            bool          flag_new_round = false;
             unsigned char is_episode_finished = 0;
 
             // clear costmap/set all pixel gray
@@ -582,47 +611,37 @@ namespace neuro_local_planner_wrapper
                 customized_costmap_.info.origin.orientation.w = 1.0;
             }
 
-            if (   isCrashed(reward)
-                || isTimeOut(reward)
-                || isGoalInvisible(reward))
+            if (isCrashed(reward))
             {
-                // New episode so restart the time count
-                start_time_ = ros::Time::now().toSec();
-
-                // This is the last transition published in this episode
-                is_running_ = false;
-
-                // Stop moving
-                setZeroAction();
-
-                // Publish that a new round can be started with the stage_sim_bot
-                flag_new_round = true;
-
+                processOnFailure();
                 is_episode_finished = 1;
                 flag_buffer_clear = true;
-                goal_invisible_count = 0;
-                clock_counter = 0;
-                transition_frame_counter_ = 0;
+                ret = false;
+
+                crash_counter_++;
+                ROS_ERROR("We crashed: %d", crash_counter_);
+            }
+            else if (isTimeOut(reward))
+            {
+                processOnFailure();
+                is_episode_finished = 1;
+                flag_buffer_clear = true;
+                ret = false;
+            }
+            else if (isGoalInvisible(reward))
+            {
+                processOnFailure();
+                is_episode_finished = 1;
+                flag_buffer_clear = true;
+                ret = false;
             }
             else if ( isAtGoal(reward))
             {
-                // New episode so restart the time count
-                start_time_ = ros::Time::now().toSec();
-
-                // This is the last transition published in this episode
-                is_running_ = false;
-
-                // Stop moving
-                setZeroAction();
-
-                // Publish that a new round can be started with the stage_sim_bot
-                flag_new_round = true;
-
+                processOnSuccess();
                 is_episode_finished = 0;
                 flag_buffer_clear = true;
-                goal_invisible_count = 0;
-                clock_counter = 0;
-                transition_frame_counter_ = 0;
+                goal_counter_++;
+                ROS_ERROR("We reached the goal: %d", goal_counter_);
             }
             else{
                 // calculated sub goal
@@ -716,15 +735,11 @@ namespace neuro_local_planner_wrapper
                 }
             }
                 // Publish that a new round can be started with the stage_sim_bot
-            if (flag_new_round)
-            {
-                std_msgs::Bool new_round;
-                new_round.data = 1;
-                state_pub_.publish(new_round);
-            }
         }
         end = ros::Time::now();
         ROS_WARN("<<<%s() - elapsed time: %f", __FUNCTION__, (end - begin).toSec());
+
+        return ret;
     }
 
     void NeuroLocalPlannerWrapper::addRobot()
@@ -1068,7 +1083,7 @@ namespace neuro_local_planner_wrapper
         {
             return false;
         }
-        else if (goal_invisible_count > 8)
+        else if (goal_invisible_count_ > 8)
         {
             ROS_ERROR("Goal is invisible!");
             return true;
@@ -1091,11 +1106,11 @@ namespace neuro_local_planner_wrapper
         // if current local map
         if (!found)
         {
-            goal_invisible_count++;    // increase count
-            ROS_WARN("Goal is invisible... count=%d", goal_invisible_count);
+            goal_invisible_count_++;    // increase count
+            ROS_WARN("Goal is invisible... count=%d", goal_invisible_count_);
         }
         else
-            goal_invisible_count = 0;  // reset
+            goal_invisible_count_ = 0;  // reset
     }
 
     double NeuroLocalPlannerWrapper::calculateRotationMomentum(std::vector<geometry_msgs::PoseStamped> subpath)

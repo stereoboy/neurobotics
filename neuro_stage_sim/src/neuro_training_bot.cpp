@@ -21,6 +21,7 @@
 bool yaw_constraint_flag = false;
 
 // Publisher and subscribers
+bool initialized = false;
 ros::Publisher stage_pub;
 
 actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> *ac_;
@@ -249,6 +250,8 @@ void costmapCallback(nav_msgs::OccupancyGrid msg)
     y_max = msg.info.height*resolution;
     y_min = margin;
     ROS_ERROR("costmap: resolution: %f, dim: (%dx%d)", msg.info.resolution, msg.info.height, msg.info.width);
+
+    initialized = true;
 }
 
 int main(int argc, char **argv)
@@ -263,7 +266,7 @@ int main(int argc, char **argv)
     yaw_constraint_flag = (robot_type_str.compare(std::string("nonholonomic")) == 0);
 
     // Subscribers
-    ros::Subscriber sub_planner = n.subscribe("/move_base/NeuroLocalPlannerWrapper/new_round", 1000, botCallback);
+    //ros::Subscriber sub_planner = n.subscribe("/move_base/NeuroLocalPlannerWrapper/new_round", 1000, botCallback);
     ros::Subscriber sub_recovery = n.subscribe("/move_base/neuro_fake_recovery/new_round", 1000, botCallback);
     ros::Subscriber sub_area = n.subscribe("/sampleArea", 1000, newSampleAreaCallback);
     ros::Subscriber sub_costmap = n.subscribe("/move_base/global_costmap/costmap", 1000, costmapCallback);
@@ -293,18 +296,41 @@ int main(int argc, char **argv)
 
     // Uncomment when using real amcl localization
     //move_base_pose_pub = n.advertise<geometry_msgs::PoseWithCovarianceStamped>("initialpose", 1);
+    ros::Duration time_between_ros_wakeups(0.2);
+    while (!initialized || sub_costmap.getNumPublishers() < 1)
+    {
+        ROS_WARN("Waiting for global_costmap");
+        ros::spinOnce();
+        time_between_ros_wakeups.sleep();
+    }
 
     // Make sure that the global planner is aware of the new position
     actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> ac("/move_base", true);
     ac_ = &ac;
     ac.waitForServer(); //will wait for infinite time
+
     ROS_INFO("neuro_training_bot: Initialization done");
 
-    // Send new position to stage
-    publishNewGoal();
+    while (ros::ok()) {
+        ros::spinOnce();
 
+        // Send new position to stage
+        publishNewPose();
 
-    ros::spin();
+        // Make sure that the global planner is aware of the new position
+        ros::Rate r(4);
+        r.sleep();
+
+        // Send new goal position to move_base
+        publishNewGoal();
+
+        ac.waitForResult();
+
+        if (ac.getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
+            ROS_INFO("Excellent! Your robot has reached the goal position.");
+        else
+            ROS_INFO("The robot failed to reach the goal position");
+    }
 
     return 0;
 }

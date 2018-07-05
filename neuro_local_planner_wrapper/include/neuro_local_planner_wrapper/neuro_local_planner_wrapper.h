@@ -53,7 +53,11 @@ namespace neuro_local_planner_wrapper
 
         private:
 
-            void buildStateRepresentation();
+            void processOnSuccess();
+
+            void processOnFailure();
+
+            bool buildStateRepresentation();
 
             bool isCrashed(double& reward);
 
@@ -91,7 +95,7 @@ namespace neuro_local_planner_wrapper
 
             bool isSameDirection(std::string label, double yaw1, double yaw2);
 
-            int goal_invisible_count;
+            int goal_invisible_count_;
 
             // Listener to get our pose on the map
             tf::TransformListener* tf_;
@@ -194,7 +198,7 @@ namespace neuro_local_planner_wrapper
 
             int file_counter; // one file for 1000 entries
 
-            long long clock_counter;
+            long long clock_counter_;
 
             char* cost_translation_table_ = NULL;
 
