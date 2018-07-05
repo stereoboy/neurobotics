@@ -22,7 +22,7 @@ FILTER3 = 32
 # FILTER4 = 64
 
 # How fast is learning
-LEARNING_RATE = 1e-4
+LEARNING_RATE = 5e-4
 
 # How fast does the target net track
 TARGET_DECAY = 0.9999
@@ -75,6 +75,7 @@ class ActorNetwork:
             # Define the gradient operation that delivers the gradients with the action gradient from the critic
             with tf.name_scope('actor/a_gradients'):
                 self.parameters_gradients = tf.gradients(self.action_output, self.actor_variables, -self.q_gradient_input) #+ tf.gradients(regularization_loss, self.actor_variables, name="regularization")
+                #tf.summary.scalar('actor_gradients', tf.reduce_mean(self.parameters_gradients[0]))
             # Define the optimizer
             with tf.name_scope('actor/a_param_opt'):
                 self.optimizer = tf.train.AdamOptimizer(LEARNING_RATE).apply_gradients(zip(self.parameters_gradients,
