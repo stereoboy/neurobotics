@@ -47,9 +47,12 @@ catkin_package(
   INCLUDE_DIRS include
   LIBRARIES neuro_local_planner_wrapper
   CATKIN_DEPENDS base_local_planner costmap_2d nav_core nav_msgs pluginlib roscpp std_msgs tf message_runtime
-  DEPENDS system_lib
+#  DEPENDS system_lib
   DEPENDS OpenCV
 )
 
 add_library(neuro_local_planner_wrapper src/neuro_local_planner_wrapper.cpp)
+
+add_dependencies(neuro_local_planner_wrapper ${catkin_EXPORTED_TARGETS})
+
 target_link_libraries(neuro_local_planner_wrapper ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
