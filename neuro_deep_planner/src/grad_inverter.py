@@ -1,6 +1,9 @@
 import tensorflow as tf
 
 
+#
+# reference: https://arxiv.org/abs/1511.04143
+#
 class GradInverter:
 
     def __init__(self, action1_bounds, action2_bounds, session):
