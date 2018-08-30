@@ -94,7 +94,7 @@ class DDPG:
             self.height = 86
             self.width = self.height
             self.depth = 4
-            self.action_dim = 2
+            self.action_dim = len(action_bounds)
 
             # Initialize the current action and the old action and old state for setting experiences
             self.old_state = np.zeros((self.width, self.height, self.depth), dtype='int8')
@@ -236,7 +236,7 @@ class DDPG:
 #        print("action", action)
         return action
 
-    def recover_action(self, action, action_bounds):
+    def denormalize_action(self, action, action_bounds):
         raw_action = np.zeros_like(action)
         for i, x in enumerate(action):
             mean = 0.5*(action_bounds[i][0] + action_bounds[i][1])

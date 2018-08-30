@@ -12,7 +12,7 @@ MIN_FILES_IN_QUEUE = 10     # Files are added when this Number is reached
 NEW_FILES_TO_ADD = 200      # How many files are added to the fifo file queue
 
 
-class DataManager:
+class DataManager(object):
 
     def __init__(self, batch_size, p_experience_path, session):
         self.graph = session.graph
