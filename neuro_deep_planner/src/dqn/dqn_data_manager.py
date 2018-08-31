@@ -10,16 +10,16 @@ from data_manager import DataManager
 
 # Parameters:
 NUM_EXPERIENCES = 200       # How many experiences stored per file
-MIN_FILE_NUM = 10           # How many files at minimum do we need for training
+MIN_FILE_NUM = 250           # How many files at minimum do we need for training
 
-MIN_FILES_IN_QUEUE = 10     # Files are added when this Number is reached
-NEW_FILES_TO_ADD = 200      # How many files are added to the fifo file queue
+MIN_FILES_IN_QUEUE = 100     # Files are added when this Number is reached
+NEW_FILES_TO_ADD = 500      # How many files are added to the fifo file queue
 
 
 class DQNDataManager(DataManager):
 
     def __init__(self, batch_size, p_experience_path, session):
-        super(DQNDataManager, self).__init__(batch_size=batch_size, p_experience_path=p_experience_path, session=session)
+        super(DQNDataManager, self).__init__(batch_size=batch_size, p_experience_path=p_experience_path, session=session, num_experiences=NUM_EXPERIENCES, min_file_num=MIN_FILE_NUM, min_files_in_queue=MIN_FILES_IN_QUEUE, new_files_to_add=NEW_FILES_TO_ADD)
 
     # builds the pipeline how random batches are generated from the experience files on the hard drive
     def build_next_batch_op(self):

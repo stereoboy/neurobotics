@@ -14,7 +14,7 @@ NEW_FILES_TO_ADD = 200      # How many files are added to the fifo file queue
 
 class DataManager(object):
 
-    def __init__(self, batch_size, p_experience_path, session):
+    def __init__(self, batch_size, p_experience_path, session, num_experiences=NUM_EXPERIENCES, min_file_num=MIN_FILE_NUM, min_files_in_queue=MIN_FILES_IN_QUEUE, new_files_to_add=NEW_FILES_TO_ADD):
         self.graph = session.graph
         with self.graph.as_default():
 
@@ -51,6 +51,11 @@ class DataManager(object):
             # operation to return size of the experience file queue
             self.filename_queue_size = self.filename_queue.size()
 
+            self.num_experiences    = num_experiences
+            self.min_file_num       = min_file_num
+            self.min_files_in_queue = min_files_in_queue
+            self.new_files_to_add   = new_files_to_add
+
             # put prexisiting files into the fifo filename queue
             if self.file_counter > 0:
                 #self.enqueue_prestored_experiences()
@@ -74,7 +79,7 @@ class DataManager(object):
     # checks if training can start
     def enough_data(self):
         # if 1000 experiences have been acquired, start training
-        if self.file_counter >= MIN_FILE_NUM:
+        if self.file_counter >= self.min_file_num:
             return True
         else:
             return False
@@ -140,17 +145,17 @@ class DataManager(object):
     def check_for_enqueue(self):
         queue_size = self.sess.run(self.filename_queue_size)
         #print(">>>check_for_enqueue: queue_size: {}".format(queue_size))
-        if queue_size < MIN_FILES_IN_QUEUE and self.file_counter >= 1:
+        if queue_size < self.min_files_in_queue and self.file_counter >= 1:
             print("[DataManager] enqueuing files")
             if self.file_counter > 0:
                 # TODO tune the capacity in the following function call
                 #random_array = np.random.randint(low=max(0, self.file_counter - 10*NEW_FILES_TO_ADD), high=self.file_counter, size=NEW_FILES_TO_ADD)
-                random_array = np.random.randint(low=0, high=self.file_counter, size=NEW_FILES_TO_ADD)
+                random_array = np.random.randint(low=0, high=self.file_counter, size=self.new_files_to_add)
             else:
-                random_array = np.zeros(NEW_FILES_TO_ADD, dtype=np.int8)
+                random_array = np.zeros(self.new_files_to_add, dtype=np.int8)
 
             filenames = []
-            for i in range(NEW_FILES_TO_ADD):
+            for i in range(self.new_files_to_add):
             #for i in range(max(0, self.file_counter - NEW_FILES_TO_ADD), self.file_counter):
                 filenames.append(self.experience_path + '/data_' + str(random_array[i]) + '.tfrecords')
 
@@ -181,7 +186,7 @@ class DataManager(object):
         self.experience_counter += 1
 
         # store NUM_EXPERIENCES experiences per file
-        if self.experience_counter == NUM_EXPERIENCES:
+        if self.experience_counter == self.num_experiences:
             print("[DataManager] write experiences into file -------------------------------------------------------------")
             try:
                 # create new file
