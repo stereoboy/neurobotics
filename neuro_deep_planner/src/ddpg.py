@@ -1,4 +1,5 @@
 import numpy as np
+import collections
 from ou_noise import OUNoise
 from critic import CriticNetwork
 from actor import ActorNetwork
@@ -118,7 +119,10 @@ class DDPG:
             self.critic_network = CriticNetwork(self.map_input, self.action_dim, self.session,
                                                 self.summary_writer)
 
-            self.summary_merged = tf.summary.merge_all()
+            self.mean_return = tf.placeholder(tf.float32, name="mean_return")
+            mean_return_summary = tf.summary.scalar("mean_return_val", self.mean_return)
+
+            self.summary_merged = tf.summary.merge([mean_return_summary])
 
             # Initialize the saver to save the network params
             self.saver = tf.train.Saver()
@@ -126,9 +130,6 @@ class DDPG:
             # initialize the experience data manger
             if self.mode == 'train':
                 self.data_manager = DataManager(BATCH_SIZE, self.experience_path, self.session)
-
-            self.actor_network.summary_merged = self.summary_merged
-            self.critic_network.summary_merged = self.summary_merged
 
             # After the graph has been filled add it to the summary writer
             self.summary_writer.add_graph(self.graph)
@@ -164,7 +165,8 @@ class DDPG:
             # Flag: don't learn the first experience
             self.first_experience = True
 
-
+            self.reward_sum = 0
+            self.total_rewards = collections.deque(maxlen=100)
 
     def train(self):
         # Check if the buffer is big enough to start training
@@ -201,8 +203,16 @@ class DDPG:
                 else:
                     y_batch.append(reward_batch[i] + GAMMA * q_value_batch[i])
 
+            if self.training_step%100 == 0:
+                if len(self.total_rewards) > 0:
+                    mean_return = np.mean(self.total_rewards)
+                else:
+                    mean_return = 0
+                summary  = self.session.run(self.summary_merged, feed_dict={self.mean_return: mean_return,})
+                self.summary_writer.add_summary(summary, self.training_step)
+
             # Now that we have the y batch lets train the critic
-            self.critic_network.train(y_batch, state_batch, action_batch)
+            self.critic_network.train(self.training_step, y_batch, state_batch, action_batch)
 
             # Get the action batch so we can calculate the action gradient with it
             # Then get the action gradient batch and adapt the gradient with the gradient inverting method
@@ -211,7 +221,7 @@ class DDPG:
             q_gradient_batch = self.grad_inv.invert(q_gradient_batch, action_batch_for_gradients)
 
             # Now we can train the actor
-            self.actor_network.train(q_gradient_batch, state_batch)
+            self.actor_network.train(self.training_step, q_gradient_batch, state_batch)
 
             # Update time step
             #self.training_step += 1
@@ -303,12 +313,18 @@ class DDPG:
         else:
             self.data_manager.store_experience_to_file(self.old_state, self.old_action, reward, state,
                                                        is_episode_finished)
+            self.reward_sum += reward
+            print("reward_sum: {}".format(self.reward_sum))
 
             # Uncomment if collecting data for the auto_encoder
             # experience = (self.old_state, self.old_action, reward, state, is_episode_finished)
             # self.buffer.append(experience)
 
         if is_episode_finished:
+            self.total_rewards.append(self.reward_sum)
+            self.reward_sum = 0
+            print("total_rewards:{}".format(self.total_rewards))
+
             self.first_experience = True
             self.exploration_noise.reset()
 

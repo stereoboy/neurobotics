@@ -46,7 +46,6 @@ class ActorNetwork:
             return ema_getter
 
         self.graph = session.graph
-        self.summary_merged = None
 
         with self.graph.as_default():
 
@@ -59,7 +58,7 @@ class ActorNetwork:
 
             # Create actor network
             self.map_input = map_input
-            tf.summary.scalar('map_input', tf.reduce_mean(self.map_input[0]))
+            #tf.summary.scalar('map_input', tf.reduce_mean(self.map_input[0]))
             self.q_gradient_input = tf.placeholder("float", [None, action_size], name='q_gradient_input')
 
             with tf.variable_scope('actor/network') as scope:
@@ -75,7 +74,7 @@ class ActorNetwork:
             # Define the gradient operation that delivers the gradients with the action gradient from the critic
             with tf.name_scope('actor/a_gradients'):
                 self.parameters_gradients = tf.gradients(self.action_output, self.actor_variables, -self.q_gradient_input) #+ tf.gradients(regularization_loss, self.actor_variables, name="regularization")
-                #tf.summary.scalar('actor_gradients', tf.reduce_mean(self.parameters_gradients[0]))
+                actor_gradient_summary = tf.summary.scalar('actor_gradients', tf.reduce_mean(self.parameters_gradients[0]))
             # Define the optimizer
             with tf.name_scope('actor/a_param_opt'):
                 self.optimizer = tf.train.AdamOptimizer(LEARNING_RATE).apply_gradients(zip(self.parameters_gradients,
@@ -95,8 +94,7 @@ class ActorNetwork:
             # Variables for plotting
             self.actions_mean_plot = [0, 0]
             self.target_actions_mean_plot = [0, 0]
-
-            self.train_counter = 0
+            self.summary_merged = tf.summary.merge([actor_gradient_summary])
 
     def custom_initializer_for_conv(self):
         return tf.variance_scaling_initializer(scale=1.0/3.0, mode='fan_in', distribution='uniform', seed=None, dtype=tf.float32)
@@ -155,18 +153,17 @@ class ActorNetwork:
 
         return out
 
-    def train(self, q_gradient_batch, state_batch):
+    def train(self, training_step, q_gradient_batch, state_batch):
         # Train the actor net
-        if self.train_counter%100 == 0:
+        if training_step%100 == 0:
             run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
             run_metadata = tf.RunMetadata()
             summary, _ = self.sess.run([self.summary_merged, self.compute_ema], feed_dict={self.q_gradient_input: q_gradient_batch, self.map_input: state_batch},
                                                                                 options=run_options, run_metadata=run_metadata)
-            self.summary_writer.add_run_metadata(run_metadata, 'a step%d' % self.train_counter)
-            self.summary_writer.add_summary(summary, self.train_counter)
+            self.summary_writer.add_run_metadata(run_metadata, 'a step%d' % training_step)
+            self.summary_writer.add_summary(summary, training_step)
         else:
             self.sess.run(self.compute_ema, feed_dict={self.q_gradient_input: q_gradient_batch, self.map_input: state_batch})
-        self.train_counter += 1
 
     def get_action(self, state):
 

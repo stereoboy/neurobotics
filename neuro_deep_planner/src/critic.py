@@ -73,13 +73,16 @@ class CriticNetwork:
                 print(self.critic_variables)
 
                 # L2 Regularization for all Variables
-            #with tf.name_scope('critic/regularization'):
-            #    regularization_loss = tf.losses.get_regularization_loss(scope='critic/network')
+            with tf.name_scope('critic/regularization'):
+                regularization_loss = tf.losses.get_regularization_loss(scope='critic/network')
 
             # Define the loss with regularization term
             with tf.name_scope('critic/cal_loss'):
                 self.td_error = tf.reduce_mean(tf.pow(self.Q_output - self.y_input, 2))
                 self.loss = self.td_error #+ regularization_loss
+                td_error_summary            = tf.summary.scalar('td_error', self.td_error)
+                regularization_loss_summary = tf.summary.scalar('regularization_loss', regularization_loss)
+                loss_summary                = tf.summary.scalar('loss', self.loss)
 
             # Define the optimizer
             with tf.name_scope('critic/q_param_opt'):
@@ -104,9 +107,7 @@ class CriticNetwork:
             # Variables for plotting
             self.action_grads_mean_plot = [0, 0]
             self.td_error_plot = 0
-
-            # Training step counter (gets incremented after each training step)
-            self.train_counter = 0
+            self.summary_merged = tf.summary.merge([td_error_summary, regularization_loss_summary, loss_summary])
 
     def custom_initializer_for_conv(self):
         return tf.variance_scaling_initializer(scale=1.0/3.0, mode='fan_in', distribution='uniform', seed=None, dtype=tf.float32)
@@ -163,22 +164,29 @@ class CriticNetwork:
 
         return out
 
-    def train(self, y_batch, state_batch, action_batch):
+    def train(self, training_step, y_batch, state_batch, action_batch):
 
         # Run optimizer and compute some summary values
-        if self.train_counter%100 == 0:
+        if training_step%100 == 0:
             run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
             run_metadata = tf.RunMetadata()
 
             summary, td_error_value, _ = self.sess.run([self.summary_merged, self.td_error, self.compute_ema],
-                    feed_dict={self.y_input: y_batch, self.map_input: state_batch, self.action_input: action_batch},
+                    feed_dict={
+                                self.y_input: y_batch,
+                                self.map_input: state_batch,
+                                self.action_input: action_batch,
+                                },
                     options=run_options, run_metadata=run_metadata)
-            self.summary_writer.add_run_metadata(run_metadata, 'c step%d' % self.train_counter)
-            self.summary_writer.add_summary(summary, self.train_counter)
+            self.summary_writer.add_run_metadata(run_metadata, 'c step%d' % training_step)
+            self.summary_writer.add_summary(summary, training_step)
         else:
-            td_error_value, _ = self.sess.run([self.td_error, self.compute_ema], feed_dict={self.y_input: y_batch,
-                                                                                          self.map_input: state_batch,
-                                                                                          self.action_input: action_batch})
+            td_error_value, _ = self.sess.run([self.td_error, self.compute_ema],
+                                                feed_dict={
+                                                    self.y_input: y_batch,
+                                                    self.map_input: state_batch,
+                                                    self.action_input: action_batch,
+                                                    })
 
 
         # Increment the td error plot variable for td error average plotting
