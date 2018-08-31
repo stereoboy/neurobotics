@@ -3,23 +3,23 @@ import math
 import numpy as np
 
 # Params of fully connected layers
-FULLY_LAYER1_SIZE = 200
-FULLY_LAYER2_SIZE = 200
+FULLY_LAYER1_SIZE = 512
+FULLY_LAYER2_SIZE = 512
 
 # Params of conv layers
-RECEPTIVE_FIELD1 = 4
+RECEPTIVE_FIELD1 = 8
 RECEPTIVE_FIELD2 = 4
 RECEPTIVE_FIELD3 = 4
 # RECEPTIVE_FIELD4 = 3
 
-STRIDE1 = 2
+STRIDE1 = 4
 STRIDE2 = 2
-STRIDE3 = 2
+STRIDE3 = 3
 # STRIDE4 = 1
 
 FILTER1 = 32
-FILTER2 = 32
-FILTER3 = 32
+FILTER2 = 64
+FILTER3 = 64
 # FILTER4 = 64
 
 # How fast is learning
@@ -107,18 +107,21 @@ class QValueNetwork:
 
         # conv layer1
         out = tf.layers.conv2d(inputs=self.map_input, filters=FILTER1, kernel_size=RECEPTIVE_FIELD1, strides=STRIDE1, padding='VALID',
-                kernel_initializer=self.custom_initializer_for_conv(),
+                kernel_initializer=tf.contrib.layers.xavier_initializer(),
                 kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                bias_initializer=tf.contrib.layers.xavier_initializer(),
                 activation=tf.nn.relu)
         # conv layer2
         out = tf.layers.conv2d(inputs=out, filters=FILTER2, kernel_size=RECEPTIVE_FIELD2, strides=STRIDE2, padding='VALID',
-                kernel_initializer=self.custom_initializer_for_conv(),
+                kernel_initializer=tf.contrib.layers.xavier_initializer(),
                 kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                bias_initializer=tf.contrib.layers.xavier_initializer(),
                 activation=tf.nn.relu)
         # conv layer3
         out = tf.layers.conv2d(inputs=out, filters=FILTER3, kernel_size=RECEPTIVE_FIELD3, strides=STRIDE3, padding='VALID',
-                kernel_initializer=self.custom_initializer_for_conv(),
+                kernel_initializer=tf.contrib.layers.xavier_initializer(),
                 kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                bias_initializer=tf.contrib.layers.xavier_initializer(),
                 activation=tf.nn.relu)
 
         # dense layer1
@@ -128,21 +131,24 @@ class QValueNetwork:
         out = tf.reshape(out, [-1, size])
         #out = tf.concat([out, self.action_input], axis=1)
         out = tf.layers.dense(inputs=out, units=FULLY_LAYER1_SIZE,
-                kernel_initializer=self.custom_initializer_for_dense(),
+                kernel_initializer=tf.contrib.layers.xavier_initializer(),
                 kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
-                bias_initializer=tf.zeros_initializer(),
+                #bias_initializer=tf.zeros_initializer(),
+                bias_initializer=tf.contrib.layers.xavier_initializer(),
                 activation=tf.nn.relu)
         # dense layer2
         out = tf.layers.dense(inputs=out, units=FULLY_LAYER2_SIZE,
-                kernel_initializer=self.custom_initializer_for_dense(),
+                kernel_initializer=tf.contrib.layers.xavier_initializer(),
                 kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
-                bias_initializer=tf.zeros_initializer(),
+                #bias_initializer=tf.zeros_initializer(),
+                bias_initializer=tf.contrib.layers.xavier_initializer(),
                 activation=tf.nn.relu)
         # dense layer3
         out = tf.layers.dense(inputs=out, units=self.action_space,
-                kernel_initializer=self.custom_initializer_for_final_dense(),
+                kernel_initializer=tf.contrib.layers.xavier_initializer(),
                 kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
-                bias_initializer=self.custom_initializer_for_final_dense(),
+                #bias_initializer=tf.zeros_initializer(),
+                bias_initializer=tf.contrib.layers.xavier_initializer(),
                 activation=None)
 
         return out

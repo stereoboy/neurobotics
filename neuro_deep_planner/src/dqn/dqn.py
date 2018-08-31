@@ -40,7 +40,7 @@ MAX_NOISE_STEP = 3000000
 TARGET_UPDATE_STEP = 1000
 
 # Epsilon for exploration
-EPSILON_DECAY_LAST_FRAME = 10**5
+EPSILON_DECAY_LAST_FRAME =3*(10**5)
 EPSILON_START = 1.0
 EPSILON_FINAL = 0.02
 
@@ -173,6 +173,8 @@ class DQN:
 
             self.reward_sum = 0
             self.total_rewards = collections.deque(maxlen=100)
+
+            self.frame_counter = 0
 
     def train(self):
         # Check if the buffer is big enough to start training
@@ -317,6 +319,8 @@ class DQN:
         # Safe old state and old action for next experience
         self.old_state = state
         self.old_action_id = self.action_id
+        print("-----------------------------------------------------------------------------------> frame_counter: {}".format(self.frame_counter))
+        self.frame_counter += 1
 
     def print_q_value(self, state, action):
 
