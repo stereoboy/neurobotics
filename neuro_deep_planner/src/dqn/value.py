@@ -70,10 +70,10 @@ class QValueNetwork:
             # Define the loss with regularization term
             with tf.name_scope('q_value/cal_loss'):
                 self.td_error = tf.reduce_mean(tf.pow(self.Q_output - self.y_input, 2))
-                self.loss = self.td_error + regularization_loss
-            tf.summary.scalar('td_error', self.td_error)
-            tf.summary.scalar('regularization_loss', regularization_loss)
-            tf.summary.scalar('loss', self.loss)
+                self.loss = self.td_error # + regularization_loss
+                td_error_summary            = tf.summary.scalar('td_error', self.td_error)
+                regularization_loss_summary = tf.summary.scalar('regularization_loss', regularization_loss)
+                loss_summary                = tf.summary.scalar('loss', self.loss)
 
             # Define the optimizer
             with tf.name_scope('q_value/q_param_opt'):
@@ -90,8 +90,7 @@ class QValueNetwork:
                 self.target_updates = tf.group(*target_updates)
 
             # Variables for plotting
-            self.action_grads_mean_plot = [0, 0]
-            self.td_error_plot = 0
+            self.summary_merged = tf.summary.merge([td_error_summary, regularization_loss_summary, loss_summary])
 
     def custom_initializer_for_conv(self):
         return tf.variance_scaling_initializer(scale=1.0/3.0, mode='fan_in', distribution='uniform', seed=None, dtype=tf.float32)
@@ -158,15 +157,20 @@ class QValueNetwork:
             run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
             run_metadata = tf.RunMetadata()
 
-            print("self.summary_merged, self.td_error, self.optimizer")
-            print(self.summary_merged, self.td_error, self.optimizer)
             summary, td_error_value, _ = self.sess.run([self.summary_merged, self.td_error, self.optimizer],
-                    feed_dict={self.y_input: y_batch, self.map_input: state_batch},
+                    feed_dict={
+                                self.y_input: y_batch,
+                                self.map_input: state_batch,
+                                },
                     options=run_options, run_metadata=run_metadata)
             self.summary_writer.add_run_metadata(run_metadata, 'c step%d' % training_step)
             self.summary_writer.add_summary(summary, training_step)
         else:
-            td_error_value, _ = self.sess.run([self.td_error, self.optimizer], feed_dict={self.y_input: y_batch, self.map_input: state_batch,})
+            td_error_value, _ = self.sess.run([self.td_error, self.optimizer],
+                                                feed_dict={
+                                                    self.y_input: y_batch,
+                                                    self.map_input: state_batch,
+                                                    })
 
     def evaluate(self, state_batch):
         return self.sess.run(self.Q_output, feed_dict={self.map_input: state_batch})

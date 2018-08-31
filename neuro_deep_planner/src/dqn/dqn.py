@@ -1,4 +1,5 @@
 import numpy as np
+import collections
 import tensorflow as tf
 
 # For saving replay buffer
@@ -125,7 +126,10 @@ class DQN:
             self.training_step_variable = tf.Variable(0, name='global_step', trainable=False)
             self.q_value_network = QValueNetwork(self.map_input, self.action_space, self.action_res, self.session, self.summary_writer, self.training_step_variable)
 
-            self.summary_merged = tf.summary.merge_all()
+            self.mean_return = tf.placeholder(tf.float32, name="mean_return")
+            mean_return_summary = tf.summary.scalar("mean_return_val", self.mean_return)
+
+            self.summary_merged = tf.summary.merge([mean_return_summary])
 
             # Initialize the saver to save the network params
             self.saver = tf.train.Saver()
@@ -133,8 +137,6 @@ class DQN:
             # initialize the experience data manger
             if self.mode == 'train':
                 self.data_manager = DQNDataManager(BATCH_SIZE, self.experience_path, self.session)
-
-            self.q_value_network.summary_merged = self.summary_merged
 
             # After the graph has been filled add it to the summary writer
             self.summary_writer.add_graph(self.graph)
@@ -169,6 +171,9 @@ class DQN:
             # Flag: don't learn the first experience
             self.first_experience = True
 
+            self.reward_sum = 0
+            self.total_rewards = collections.deque(maxlen=100)
+
     def train(self):
         # Check if the buffer is big enough to start training
         if self.data_manager.enough_data():
@@ -198,6 +203,14 @@ class DQN:
                     y_batch.append([reward_batch[i]])
                 else:
                     y_batch.append(reward_batch[i] + GAMMA * q_value_batch[i])
+
+            if self.training_step%100 == 0:
+                if len(self.total_rewards) > 0:
+                    mean_return = np.mean(self.total_rewards)
+                else:
+                    mean_return = 0
+                summary  = self.session.run(self.summary_merged, feed_dict={self.mean_return: mean_return,})
+                self.summary_writer.add_summary(summary, self.training_step)
 
             # Now that we have the y batch lets train the critic
             self.q_value_network.train(self.training_step, y_batch, state_batch)
@@ -287,12 +300,18 @@ class DQN:
         else:
             self.data_manager.store_experience_to_file(self.old_state, self.old_action_id, reward, state,
                                                        is_episode_finished)
+            self.reward_sum += reward
+            print("reward_sum: {}".format(self.reward_sum))
 
             # Uncomment if collecting data for the auto_encoder
             # experience = (self.old_state, self.old_action_id, reward, state, is_episode_finished)
             # self.buffer.append(experience)
 
         if is_episode_finished:
+            self.total_rewards.append(self.reward_sum)
+            self.reward_sum = 0
+            print("total_rewards:{}".format(self.total_rewards))
+
             self.first_experience = True
 
         # Safe old state and old action for next experience
