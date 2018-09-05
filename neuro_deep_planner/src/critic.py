@@ -80,6 +80,7 @@ class CriticNetwork:
             with tf.name_scope('critic/cal_loss'):
                 self.td_error = tf.reduce_mean(tf.pow(self.Q_output - self.y_input, 2))
                 self.loss = self.td_error #+ regularization_loss
+                q_value_summary             = tf.summary.scalar('q_value', tf.reduce_mean(self.Q_output))
                 td_error_summary            = tf.summary.scalar('td_error', self.td_error)
                 regularization_loss_summary = tf.summary.scalar('regularization_loss', regularization_loss)
                 loss_summary                = tf.summary.scalar('loss', self.loss)
@@ -91,6 +92,11 @@ class CriticNetwork:
             # Define the action gradients for the actor training step
             with tf.name_scope('critic/q_gradients'):
                 self.q_gradients = tf.gradients(self.Q_output, self.action_input)
+                q_gradients_summary = []
+                q_gradients_means = tf.reduce_mean(self.q_gradients[0], axis=0)
+
+                for i in range(q_gradients_means.shape.as_list()[0]):
+                    q_gradients_summary.append(tf.summary.scalar("q_gradient%d"%(i), q_gradients_means[i]))
 
             with tf.control_dependencies([self.optimizer]):
                 with tf.name_scope('critic/moving_average'):
@@ -107,7 +113,7 @@ class CriticNetwork:
             # Variables for plotting
             self.action_grads_mean_plot = [0, 0]
             self.td_error_plot = 0
-            self.summary_merged = tf.summary.merge([td_error_summary, regularization_loss_summary, loss_summary])
+            self.summary_merged = tf.summary.merge([q_value_summary, td_error_summary, regularization_loss_summary, loss_summary] + q_gradients_summary)
 
     def custom_initializer_for_conv(self):
         return tf.variance_scaling_initializer(scale=1.0/3.0, mode='fan_in', distribution='uniform', seed=None, dtype=tf.float32)

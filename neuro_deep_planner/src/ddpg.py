@@ -165,6 +165,7 @@ class DDPG:
             # Flag: don't learn the first experience
             self.first_experience = True
 
+            self.episode_count = 0
             self.reward_sum = 0
             self.total_rewards = collections.deque(maxlen=100)
 
@@ -202,14 +203,6 @@ class DDPG:
                     y_batch.append([reward_batch[i]])
                 else:
                     y_batch.append(reward_batch[i] + GAMMA * q_value_batch[i])
-
-            if self.training_step%100 == 0:
-                if len(self.total_rewards) > 0:
-                    mean_return = np.mean(self.total_rewards)
-                else:
-                    mean_return = 0
-                summary  = self.session.run(self.summary_merged, feed_dict={self.mean_return: mean_return,})
-                self.summary_writer.add_summary(summary, self.training_step)
 
             # Now that we have the y batch lets train the critic
             self.critic_network.train(self.training_step, y_batch, state_batch, action_batch)
@@ -272,8 +265,8 @@ class DDPG:
         # Get the action
         self.action = self.actor_network.get_action(state)
 
-        print("normalized action A", self.action)
-#        self.action = self.recover_action(self.action, ACTION_BOUNDS)
+#        print("normalized action A", self.action)
+#        self.action = self.denormalize_action(self.action, self.action_bounds)
 
         print("self.noise_flag", self.noise_flag)
         print("self.training_step", self.training_step)
@@ -322,8 +315,17 @@ class DDPG:
 
         if is_episode_finished:
             self.total_rewards.append(self.reward_sum)
+            self.episode_count += 1
+            print("self.episode_count:{}".format(self.episode_count))
             self.reward_sum = 0
-            print("total_rewards:{}".format(self.total_rewards))
+            if self.episode_count%10 == 0:
+                print("total_rewards:{}".format(self.total_rewards))
+                if len(self.total_rewards) > 0:
+                    mean_return = np.mean(self.total_rewards)
+                else:
+                    mean_return = 0
+                summary  = self.session.run(self.summary_merged, feed_dict={self.mean_return: mean_return,})
+                self.summary_writer.add_summary(summary, self.episode_count)
 
             self.first_experience = True
             self.exploration_noise.reset()
@@ -331,7 +333,7 @@ class DDPG:
         # Safe old state and old action for next experience
         self.old_state = state
         self.old_action = self.action
-        #self.old_action = self.normalize_action(self.action, ACTION_BOUNDS)
+        #self.old_action = self.normalize_action(self.action, self.action_bounds)
 
     def print_q_value(self, state, action):
 
