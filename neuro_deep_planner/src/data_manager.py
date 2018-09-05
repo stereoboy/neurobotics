@@ -57,7 +57,7 @@ class DataManager(object):
             self.new_files_to_add   = new_files_to_add
 
             # put prexisiting files into the fifo filename queue
-            if self.file_counter > 0:
+            if self.enough_data():
                 #self.enqueue_prestored_experiences()
                 self.check_for_enqueue()
 
@@ -155,7 +155,7 @@ class DataManager(object):
                 random_array = np.zeros(self.new_files_to_add, dtype=np.int8)
 
             filenames = []
-            for i in range(self.new_files_to_add):
+            for i in range(len(random_array)):
             #for i in range(max(0, self.file_counter - NEW_FILES_TO_ADD), self.file_counter):
                 filenames.append(self.experience_path + '/data_' + str(random_array[i]) + '.tfrecords')
 

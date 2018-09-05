@@ -172,6 +172,7 @@ class DDPG:
     def train(self):
         # Check if the buffer is big enough to start training
         if self.data_manager.enough_data():
+            self.data_manager.check_for_enqueue()
 
             # get the next random batch from the data manger
             state_batch, \
@@ -225,8 +226,6 @@ class DDPG:
                 st = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 print("[{}][{}] SAVE ###################################".format(st, self.training_step))
                 self.saver.save(self.session, self.net_save_path + "/weights", global_step=self.training_step_variable)
-
-        self.data_manager.check_for_enqueue()
 
     def normalize_action(self, raw_action, action_bounds):
         action = np.zeros_like(raw_action)
