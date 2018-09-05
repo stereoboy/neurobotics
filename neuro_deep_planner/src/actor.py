@@ -93,7 +93,6 @@ class ActorNetwork:
 
             # Variables for plotting
             self.actions_mean_plot = [0, 0]
-            self.target_actions_mean_plot = [0, 0]
             self.summary_merged = tf.summary.merge([actor_gradient_summary])
 
     def custom_initializer_for_conv(self):
@@ -151,6 +150,7 @@ class ActorNetwork:
                 bias_initializer=self.custom_initializer_for_final_dense(),
                 activation=None)
 
+#        out = tf.nn.softsign(out)
         return out
 
     def train(self, training_step, q_gradient_batch, state_batch):
@@ -166,67 +166,14 @@ class ActorNetwork:
             self.sess.run(self.compute_ema, feed_dict={self.q_gradient_input: q_gradient_batch, self.map_input: state_batch})
 
     def get_action(self, state):
-
         return self.sess.run(self.action_output, feed_dict={self.map_input: [state]})[0]
 
     def evaluate(self, state_batch):
         # Get an action batch
-#        if self.train_counter % PLOT_STEP == 0:
-#            run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-#            run_metadata = tf.RunMetadata()
-#            summary, actions = self.sess.run([self.summary_merged, self.action_output], feed_dict={self.map_input: state_batch},
-#                                                                            options=run_options,
-#                                                                            run_metadata=run_metadata)
-#            self.summary_writer.add_summary(summary)
-#        else:
-#            actions = self.sess.run(self.action_output, feed_dict={self.map_input: state_batch})
         actions = self.sess.run(self.action_output, feed_dict={self.map_input: state_batch})
-
-        # Create summaries for the actions
-        actions_mean = np.mean(np.asarray(actions, dtype=float), axis=0)
-        self.actions_mean_plot += actions_mean
-
-        # Only save files every PLOT_STEP steps
-        if self.train_counter % PLOT_STEP == 0:
-
-            self.actions_mean_plot /= PLOT_STEP
-
-            summary_action_0 = tf.Summary(value=[tf.Summary.Value(tag='actions_mean[0]',
-                                                                  simple_value=np.asscalar(
-                                                                      self.actions_mean_plot[0]))])
-            summary_action_1 = tf.Summary(value=[tf.Summary.Value(tag='actions_mean[1]',
-                                                                  simple_value=np.asscalar(
-                                                                      self.actions_mean_plot[1]))])
-            #self.summary_writer.add_summary(summary_action_0, self.train_counter)
-            #self.summary_writer.add_summary(summary_action_1, self.train_counter)
-
-            self.actions_mean_plot = [0, 0]
-
         return actions
 
     def target_evaluate(self, state_batch):
-
         # Get action batch
         actions = self.sess.run(self.action_output_target, feed_dict={self.map_input: state_batch})
-
-        # Create summaries for the target actions
-        actions_mean = np.mean(np.asarray(actions, dtype=float), axis=0)
-        self.target_actions_mean_plot += actions_mean
-
-        # Only save files every 10 steps
-        if (self.train_counter % PLOT_STEP) == 0:
-
-            self.target_actions_mean_plot /= PLOT_STEP
-
-            summary_target_action_0 = tf.Summary(value=[tf.Summary.Value(tag='target_actions_mean[0]',
-                                                                         simple_value=np.asscalar(
-                                                                             self.target_actions_mean_plot[0]))])
-            summary_target_action_1 = tf.Summary(value=[tf.Summary.Value(tag='target_actions_mean[1]',
-                                                                         simple_value=np.asscalar(
-                                                                             self.target_actions_mean_plot[1]))])
-            #self.summary_writer.add_summary(summary_target_action_0, self.train_counter)
-            #self.summary_writer.add_summary(summary_target_action_1, self.train_counter)
-
-            self.target_actions_mean_plot = [0, 0]
-
         return actions

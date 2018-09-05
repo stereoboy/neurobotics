@@ -192,20 +192,6 @@ class CriticNetwork:
         # Increment the td error plot variable for td error average plotting
         self.td_error_plot += td_error_value
 
-        # Only save data every 10 steps
-#        if self.train_counter % PLOT_STEP == 0:
-#
-#            self.td_error_plot /= PLOT_STEP
-#
-#            # Add td error to the summary writer
-#            summary = tf.Summary(value=[tf.Summary.Value(tag='td_error_mean',
-#                                                         simple_value=np.asscalar(self.td_error_plot))])
-#            self.summary_writer.add_summary(summary, self.train_counter)
-#
-#            self.td_error_plot = 0.0
-
-        self.train_counter += 1
-
     def get_q_gradient(self, state_batch, action_batch):
 
         # Get the action gradients for the actor optimization
