@@ -8,7 +8,9 @@
 PLUGINLIB_EXPORT_CLASS(neuro_local_planner_wrapper::NeuroLocalPlannerWrapper, nav_core::BaseLocalPlanner)
 
 int threshold_crash = 170;
-double subgoal_reward = 0.2;
+double goal_reward = 10.0;
+double fail_reward = -1.0;
+double subgoal_reward = 0.8;
 
 namespace neuro_local_planner_wrapper
 {
@@ -202,7 +204,7 @@ namespace neuro_local_planner_wrapper
     // Sets the plan
     bool NeuroLocalPlannerWrapper::setPlan(const std::vector<geometry_msgs::PoseStamped>& orig_global_plan)
     {
-        ROS_WARN("<<<NeuroLocalPlannerWrapper::setPlan()");
+        ROS_WARN(">>>%s()", __FUNCTION__);
         // Check if the planner has been initialized
         if (!initialized_)
         {
@@ -239,6 +241,7 @@ namespace neuro_local_planner_wrapper
 
         is_running_ = true;
 
+        ROS_WARN("<<<%s()", __FUNCTION__);
         return true;
     }
 
@@ -364,7 +367,7 @@ namespace neuro_local_planner_wrapper
         // TODO: could be solved nicer by using a different inscribed radius, then: >= 253
         if(costmap_->getCost((unsigned int)robot_x, (unsigned int)robot_y) >= threshold_crash)
         {
-            reward = -1.0;
+            reward = fail_reward;
             return true;
         }
         else
@@ -430,7 +433,7 @@ namespace neuro_local_planner_wrapper
         // Check if the robot has reached the goal
         if(condition)
         {
-            reward = 10.0;
+            reward = goal_reward;
             return true;
         }
         else
@@ -491,11 +494,17 @@ namespace neuro_local_planner_wrapper
             {
                 //ROS_INFO("dist: %f", dist);
                 //ROS_INFO("We got the sub reward at %d", i);
-                reward += subgoal_reward;
+                //ROS_INFO("touched_subgoal_count %d", touched_subgoal_count);
+                //reward += subgoal_reward;
                 touched_subgoal_count++;
                 if (touched_max_index == -1)
                     touched_max_index = i;
             }
+        }
+        if (touched_subgoal_count)
+        {
+            //ROS_INFO("touched_subgoal_count");
+            reward += subgoal_reward;
         }
 
         // clear touched path points => construct new plan from untouched path points only
@@ -718,6 +727,7 @@ namespace neuro_local_planner_wrapper
                 transition_msg_.is_episode_finished = is_episode_finished;
                 transition_msg_.reward = reward;
 
+                ROS_INFO("transition_msg_.reward: %f", transition_msg_.reward);
                 ROS_WARN("   %s() - publish trainsition", __FUNCTION__);
 
                 transition_msg_pub_.publish(transition_msg_);
@@ -802,7 +812,8 @@ namespace neuro_local_planner_wrapper
                 {
                     value = costmap_->getCost(mx, my);
                     if (value == 255)
-                        customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
+                        ;
+                        //customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
                     else if (value >= 254)
                         customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
                 }
