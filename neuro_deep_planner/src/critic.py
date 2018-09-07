@@ -201,35 +201,23 @@ class CriticNetwork:
     def get_q_gradient(self, state_batch, action_batch):
 
         # Get the action gradients for the actor optimization
-        q_gradients = self.sess.run(self.q_gradients, feed_dict={self.map_input: state_batch,
-                                                                           self.action_input: action_batch})[0]
-
-        # Create summaries for the action gradients and add them to the summary writer
-        action_grads_mean = np.mean(q_gradients, axis=0)
-        self.action_grads_mean_plot += action_grads_mean
-
-        # Only save data every 10 steps
-#        if self.train_counter % PLOT_STEP == 0:
-#
-#            self.action_grads_mean_plot /= PLOT_STEP
-#
-#            summary_actor_grads_0 = tf.Summary(value=[tf.Summary.Value(tag='action_grads_mean[0]',
-#                                                                       simple_value=np.asscalar(
-#                                                                           self.action_grads_mean_plot[0]))])
-#            summary_actor_grads_1 = tf.Summary(value=[tf.Summary.Value(tag='action_grads_mean[1]',
-#                                                                       simple_value=np.asscalar(
-#                                                                           self.action_grads_mean_plot[1]))])
-#            self.summary_writer.add_summary(summary_actor_grads_0, self.train_counter)
-#            self.summary_writer.add_summary(summary_actor_grads_1, self.train_counter)
-#
-#            self.action_grads_mean_plot = [0, 0]
-
+        q_gradients = self.sess.run(self.q_gradients,
+                                    feed_dict={
+                                                self.map_input: state_batch,
+                                                self.action_input: action_batch
+                                                })[0]
         return q_gradients
 
     def evaluate(self, state_batch, action_batch):
-
-        return self.sess.run(self.Q_output, feed_dict={self.map_input: state_batch, self.action_input: action_batch})
+        return self.sess.run(self.Q_output,
+                            feed_dict={
+                                        self.map_input: state_batch,
+                                        self.action_input: action_batch
+                                        })
 
     def target_evaluate(self, state_batch, action_batch):
-        return self.sess.run(self.Q_output_target, feed_dict={self.map_input: state_batch,
-                                                              self.action_input: action_batch})
+        return self.sess.run(self.Q_output_target,
+                            feed_dict={
+                                        self.map_input: state_batch,
+                                        self.action_input: action_batch
+                                        })
