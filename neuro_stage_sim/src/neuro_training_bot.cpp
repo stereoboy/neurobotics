@@ -101,15 +101,15 @@ void publishNewGoal()
             }
             else
             {
-                // Now check for dynamic obstacles
-                for (long unsigned i = 0; i < robot_poses.size(); i++)
-                {
-                    if (dist(x, y, robot_poses.at(i).pose.pose.position.x, robot_poses.at(i).pose.pose.position.y) < 0.8)
-                    {
-                        collision = true;
-                        ROS_ERROR("NewGoal() failed due to moving obastcles!");
-                    }
-                }
+//                // Now check for dynamic obstacles
+//                for (long unsigned i = 0; i < robot_poses.size(); i++)
+//                {
+//                    if (dist(x, y, robot_poses.at(i).pose.pose.position.x, robot_poses.at(i).pose.pose.position.y) < 0.8)
+//                    {
+//                        collision = true;
+//                        ROS_ERROR("NewGoal() failed due to moving obastcles!");
+//                    }
+//                }
             }
         }
     }
@@ -140,9 +140,10 @@ void publishNewPose()
         collision = false;
         x = getRandomDouble(x_min, x_max, 0.00);
         y = getRandomDouble(y_min, y_max, 0.00);
+
         yaw = getRandomDouble(yaw_min, yaw_max, 0.00);
 
-        ROS_ERROR("NewGoal() (%f, %f, %f)", x, y, yaw);
+        ROS_ERROR("NewPose() (%f, %f, %f)", x, y, yaw);
 
         // First check for the costmap values
         pixel_position = (unsigned int)(x / resolution) + (unsigned int)(y / resolution) * map_size;
@@ -229,15 +230,34 @@ void newSampleAreaCallback(const std_msgs::Int8 newSampleAreaMsg)
     }
 }
 
-void robot_1_callback(nav_msgs::Odometry msg)
-{
-    robot_poses.at(0) = msg;
-}
+#define DEFINE_ROBOT_CALLBACK(id)  \
+    void robot_##id##_callback(nav_msgs::Odometry msg) \
+    { \
+        ROS_INFO(">>>%s(%d)", __FUNCTION__, id); \
+        robot_poses.at(id - 1) = msg; \
+        ROS_INFO("<<<%s(%d)", __FUNCTION__, id); \
+    }\
 
-void robot_2_callback(nav_msgs::Odometry msg)
-{
-    robot_poses.at(1) = msg;
-}
+#define REGISTER_ROBOT_CALLBACK(node, id) \
+    ROS_INFO("(%d)", id); \
+    ros::Subscriber sub_robot_##id = node.subscribe("/robot_" #id "/base_pose_ground_truth", 1000, robot_##id##_callback); \
+    ROS_INFO("/robot_" #id "/base_pose_ground_truth"); \
+
+DEFINE_ROBOT_CALLBACK(1)
+DEFINE_ROBOT_CALLBACK(2)
+DEFINE_ROBOT_CALLBACK(3)
+DEFINE_ROBOT_CALLBACK(4)
+
+//void robot_1_callback(nav_msgs::Odometry msg)
+//{
+//    robot_poses.at(0) = msg;
+//}
+//
+//void robot_2_callback(nav_msgs::Odometry msg)
+//{
+//    robot_poses.at(1) = msg;
+//}
+//
 
 void costmapCallback(nav_msgs::OccupancyGrid msg)
 {
@@ -263,7 +283,9 @@ int main(int argc, char **argv)
     // Parameters
     std::string robot_type_str;
     n.param("/robot_type", robot_type_str, std::string("holonomic"));
-    yaw_constraint_flag = (robot_type_str.compare(std::string("nonholonomic")) == 0);
+    //yaw_constraint_flag = (robot_type_str.compare(std::string("nonholonomic")) == 0);
+    //yaw_constraint_flag = false;
+    yaw_constraint_flag = true;
 
     // Subscribers
     //ros::Subscriber sub_planner = n.subscribe("/move_base/NeuroLocalPlannerWrapper/new_round", 1000, botCallback);
@@ -271,25 +293,10 @@ int main(int argc, char **argv)
     ros::Subscriber sub_area = n.subscribe("/sampleArea", 1000, newSampleAreaCallback);
     ros::Subscriber sub_costmap = n.subscribe("/move_base/global_costmap/costmap", 1000, costmapCallback);
 
-
-    ros::Subscriber sub_robot_1 = n.subscribe("/robot_1/base_pose_ground_truth", 1000, robot_1_callback);
-    ros::Subscriber sub_robot_2 = n.subscribe("/robot_2/base_pose_ground_truth", 1000, robot_2_callback);
-
-    nav_msgs::Odometry temp_pose;
-
-    // Robot 1 initial pose
-    temp_pose.pose.pose.position.x = 1.7;
-    temp_pose.pose.pose.position.y = 3.3;
-    temp_pose.pose.pose.position.z = 0.0;
-    temp_pose.pose.pose.orientation.z = 1.0;
-    robot_poses.push_back(temp_pose);
-
-    // Robot 2 initial pose
-    temp_pose.pose.pose.position.x = 1.7;
-    temp_pose.pose.pose.position.y = 0.5;
-    temp_pose.pose.pose.position.z = 0.0;
-    temp_pose.pose.pose.orientation.z = 1.0;
-    robot_poses.push_back(temp_pose);
+//    REGISTER_ROBOT_CALLBACK(n, 1);
+//    REGISTER_ROBOT_CALLBACK(n, 2);
+//    REGISTER_ROBOT_CALLBACK(n, 3);
+//    REGISTER_ROBOT_CALLBACK(n, 4);
 
     // Publishers
     stage_pub = n.advertise<geometry_msgs::Pose>("neuro_stage_ros/set_pose", 1);
@@ -309,6 +316,25 @@ int main(int argc, char **argv)
     ac_ = &ac;
     ac.waitForServer(); //will wait for infinite time
 
+    std::vector<double> initial_positions;
+    while (!n.getParam("initial_positions", initial_positions) || !initial_positions.size())
+    {
+        ROS_WARN("Waiting for initial_positions");
+        ros::Rate r(4);
+        r.sleep();
+    }
+
+    for(int i = 0; i < initial_positions.size()/2; i++)
+    {
+        nav_msgs::Odometry temp_pose;
+        temp_pose.pose.pose.position.x = initial_positions[2*i];
+        temp_pose.pose.pose.position.y = initial_positions[2*i + 1];
+        temp_pose.pose.pose.position.z = 0.0;
+        temp_pose.pose.pose.orientation.z = 1.0;
+        robot_poses.push_back(temp_pose);
+        ROS_INFO("--------------------->[%d] (%f, %f)", i, initial_positions[2*i], initial_positions[2*i + 1]);
+    }
+
     ROS_INFO("neuro_training_bot: Initialization done");
 
     while (ros::ok()) {
@@ -324,7 +350,7 @@ int main(int argc, char **argv)
         // Send new goal position to move_base
         publishNewGoal();
 
-        ac.waitForResult();
+        ac.waitForResult(ros::Duration(200.0));
 
         if (ac.getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
             ROS_INFO("Excellent! Your robot has reached the goal position.");

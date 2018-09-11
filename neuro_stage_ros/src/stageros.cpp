@@ -33,6 +33,7 @@
 #include <unistd.h>
 #include <signal.h>
 
+#include <pthread.h>
 
 // libstage
 #include <stage.hh>
@@ -54,6 +55,13 @@
 #include <geometry_msgs/PoseStamped.h>
 #include "tf/LinearMath/Transform.h"
 #include <std_srvs/Empty.h>
+
+#include <sys/syscall.h>
+
+unsigned int gettid()
+{
+    return syscall(SYS_gettid);
+}
 
 #include "tf/transform_broadcaster.h"
 
@@ -192,6 +200,7 @@ const char *
 StageNode::mapName(const char *name, size_t robotID, Stg::Model* mod) const
 {
     //ROS_INFO("Robot %lu: Device %s", robotID, name);
+    //ROS_INFO("<<<[%d]%s()", gettid(), __FUNCTION__);
     bool umn = this->use_model_names;
 
     if ((positionmodels.size() > 1 ) || umn)
@@ -212,6 +221,7 @@ StageNode::mapName(const char *name, size_t robotID, Stg::Model* mod) const
             else
                 snprintf(buf, sizeof(buf), "/robot_%u/%s", (unsigned int)robotID, name);
         }
+        //ROS_INFO(">>>[%d]%s()", gettid(), __FUNCTION__);
         return buf;
     }
     else
@@ -222,6 +232,7 @@ const char *
 StageNode::mapName(const char *name, size_t robotID, size_t deviceID, Stg::Model* mod) const
 {
     //ROS_INFO("Robot %lu: Device %s:%lu", robotID, name, deviceID);
+    //ROS_INFO("<<<[%d]%s()", gettid(), __FUNCTION__);
     bool umn = this->use_model_names;
 
     if ((positionmodels.size() > 1 ) || umn)
@@ -239,6 +250,7 @@ StageNode::mapName(const char *name, size_t robotID, size_t deviceID, Stg::Model
             snprintf(buf, sizeof(buf), "/robot_%u/%s_%u", (unsigned int)robotID, name, (unsigned int)deviceID);
         }
 
+        //ROS_INFO(">>>[%d]%s()", gettid(), __FUNCTION__);
         return buf;
     }
     else
@@ -253,6 +265,7 @@ StageNode::mapName(const char *name, size_t robotID, size_t deviceID, Stg::Model
 void
 StageNode::ghfunc(Stg::Model* mod, StageNode* node)
 {
+    ROS_INFO("[%d]%s()", gettid(),  __FUNCTION__);
     if (dynamic_cast<Stg::ModelRanger *>(mod))
         node->lasermodels.push_back(dynamic_cast<Stg::ModelRanger *>(mod));
     if (dynamic_cast<Stg::ModelPosition *>(mod)) {
@@ -271,6 +284,7 @@ StageNode::ghfunc(Stg::Model* mod, StageNode* node)
 bool
 StageNode::cb_reset_srv(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response)
 {
+  //boost::mutex::scoped_lock lock(msg_lock);
   ROS_INFO("Resetting stage!");
   for (size_t r = 0; r < this->positionmodels.size(); r++) {
     this->positionmodels[r]->SetPose(this->initial_poses[r]);
@@ -283,6 +297,7 @@ StageNode::cb_reset_srv(std_srvs::Empty::Request& request, std_srvs::Empty::Resp
 void
 StageNode::cmdvelReceived(int idx, const boost::shared_ptr<geometry_msgs::Twist const>& msg)
 {
+    ROS_INFO(">>>[%d]%s(%d)", gettid(), __FUNCTION__, idx);
     boost::mutex::scoped_lock lock(msg_lock);
     this->positionmodels[idx]->SetSpeed(msg->linear.x,
                                         msg->linear.y,
@@ -297,12 +312,13 @@ StageNode::cmdvelReceived(int idx, const boost::shared_ptr<geometry_msgs::Twist 
     }
 
     this->base_last_cmd = this->sim_time;
+    ROS_INFO("<<<[%d]%s(%d)", gettid(), __FUNCTION__, idx);
 }
 
 void
 StageNode::poseReceived(int idx, const boost::shared_ptr<geometry_msgs::Pose const>& msg)
 {
-    ROS_WARN("poseReceived(%d)", idx);
+    ROS_INFO(">>>[%d]%s(%d)", gettid(), __FUNCTION__, idx);
     boost::mutex::scoped_lock lock(msg_lock);
     Stg::Pose pose;
 
@@ -314,6 +330,15 @@ StageNode::poseReceived(int idx, const boost::shared_ptr<geometry_msgs::Pose con
     pose.z = 0;
     pose.a = yaw;
     this->positionmodels[idx]->SetPose(pose);
+
+    // reset robot poses
+    ROS_INFO("---[%d]%s(%d) - reset robot poses", gettid(), __FUNCTION__, idx);
+    for (size_t r = 1; r < this->positionmodels.size(); r++)
+    {
+        this->positionmodels[r]->SetPose(this->initial_poses[r]);
+        this->positionmodels[r]->SetStall(false);
+    }
+    ROS_INFO("<<<[%d]%s(%d)", gettid(), __FUNCTION__, idx);
 }
 
 void
@@ -428,7 +453,8 @@ StageNode::SubscribeModels()
         new_robot->odom_pub = n_.advertise<nav_msgs::Odometry>(mapName(ODOM, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10);
         new_robot->ground_truth_pub = n_.advertise<nav_msgs::Odometry>(mapName(BASE_POSE_GROUND_TRUTH, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10);
         //new_robot->cmdvel_sub = n_.subscribe<geometry_msgs::Twist>(mapName(CMD_VEL, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10, boost::bind(&StageNode::cmdvelReceived, this, r, _1));
-	    new_robot->cmdvel_sub = n_.subscribe<geometry_msgs::Twist>("/move_base/NeuroLocalPlannerWrapper/action", 10, boost::bind(&StageNode::cmdvelReceived, this, 0, _1));
+        if (r == 0)
+	        new_robot->cmdvel_sub = n_.subscribe<geometry_msgs::Twist>("/move_base/NeuroLocalPlannerWrapper/action", 10, boost::bind(&StageNode::cmdvelReceived, this, 0, _1));
         //new_robot->pose_sub = n_.subscribe<geometry_msgs::Pose>(mapName(POSE, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10, boost::bind(&StageNode::poseReceived, this, r, _1));
         if (r == 0)
             new_robot->pose_sub = n_.subscribe<geometry_msgs::Pose>("neuro_stage_ros/set_pose", 10, boost::bind(&StageNode::poseReceived, this, 0, _1));
@@ -469,6 +495,15 @@ StageNode::SubscribeModels()
     // advertising reset service
     reset_srv_ = n_.advertiseService("reset_positions", &StageNode::cb_reset_srv, this);
 
+    ROS_INFO("neuro_stage_ros setup moving obstacles' initial_positions");
+    std::vector<double> initial_positions;
+    for (size_t r = 1; r < this->initial_poses.size(); r++)
+    {
+        initial_positions.push_back(this->initial_poses[r].x);
+        initial_positions.push_back(this->initial_poses[r].y);
+    }
+    n_.setParam("initial_positions", initial_positions);
+
     return(0);
 }
 
@@ -487,6 +522,7 @@ StageNode::UpdateWorld()
 void
 StageNode::WorldCallback()
 {
+    //ROS_INFO("[%d]%s()", gettid(), __FUNCTION__);
     boost::mutex::scoped_lock lock(msg_lock);
 
     // Publish a marker for visualization of the two dynamic obstacles
@@ -899,6 +935,7 @@ main(int argc, char** argv)
     // New in Stage 4.1.1: must Start() the world.
     sn.world->Start();
 
+#if 1
     // TODO: get rid of this fixed-duration sleep, using some Stage builtin
     // PauseUntilNextUpdate() functionality.
     ros::WallRate r(10.0);
@@ -912,6 +949,9 @@ main(int argc, char** argv)
             r.sleep();
         }
     }
+#else
+    Stg::World::Run();
+#endif
     t.join();
 
     exit(0);

@@ -46,17 +46,26 @@ turtlebot
   name "turtlebot"
 )
 
-turtlebot
+obstacle
 (
   pose [ 2.182 5.182 0.000 152.407 ]
   name "turtlebot1"
 )
 
-turtlebot
+obstacle
 (
   pose [ 2.425 2.172 0.000 131.390 ]
   name "turtlebot2"
 )
 
+obstacle
+(
+  pose [ 1.925 3.172 0.000 0.000 ]
+  name "turtlebot3"
+)
 
-
+obstacle
+(
+  pose [ 3.625 2.172 0.000 0.000 ]
+  name "turtlebot4"
+)
