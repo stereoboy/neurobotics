@@ -351,20 +351,26 @@ namespace neuro_local_planner_wrapper
         }
 
         // Compute map coordinates
-        int robot_x;
-        int robot_y;
-        costmap_->worldToMapNoBounds(current_pose.getOrigin().getX(), current_pose.getOrigin().getY(), robot_x, robot_y);
-
-        ROS_ERROR("-----(%f, %f) -> (%d, %d)   // (%f, %f)", current_pose.getOrigin().getX(),current_pose.getOrigin().getY(), robot_x, robot_y, costmap_->getOriginX(), costmap_->getOriginY());
-        // This causes a crash not just a critical positions but a little bit before the wall
-        // TODO: could be solved nicer by using a different inscribed radius, then: >= 253
-        if(costmap_->getCost((unsigned int)robot_x, (unsigned int)robot_y) >= threshold_crash)
+        unsigned int robot_x;
+        unsigned int robot_y;
+        boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
+        if (costmap_->worldToMap(current_pose.getOrigin().getX(), current_pose.getOrigin().getY(), robot_x, robot_y))
         {
-            reward = fail_reward;
-            return true;
+            // This causes a crash not just a critical positions but a little bit before the wall
+            // TODO: could be solved nicer by using a different inscribed radius, then: >= 253
+            if(costmap_->getCost(robot_x, robot_y) >= threshold_crash)
+            {
+                reward = fail_reward;
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
         else
         {
+            ROS_ERROR("-----(%f, %f) -> (%d, %d)   // (%f, %f)", current_pose.getOrigin().getX(),current_pose.getOrigin().getY(), robot_x, robot_y, costmap_->getOriginX(), costmap_->getOriginY());
             return false;
         }
     }
