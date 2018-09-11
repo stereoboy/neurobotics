@@ -668,6 +668,11 @@ namespace neuro_local_planner_wrapper
                 e = ros::Time::now();
                 ROS_WARN("<<<%s():%d - elapsed time: %f", __FUNCTION__, __LINE__, (e - b).toSec());
 
+                // add laser scan points as invalid/black pixel
+                //addLaserScanPoints(laser_scan);
+
+                addCostmap();
+
                 // add the robot with the orientation as a arrow
                 addRobot();
 
@@ -676,11 +681,6 @@ namespace neuro_local_planner_wrapper
 
                 // inspect goal visibility
                 processGoalVisibility();
-
-                // add laser scan points as invalid/black pixel
-                //addLaserScanPoints(laser_scan);
-
-                addCostmap();
 
                 e = ros::Time::now();
                 ROS_WARN("<<<%s():%d - elapsed time: %f", __FUNCTION__, __LINE__, (e - b).toSec());
@@ -811,9 +811,8 @@ namespace neuro_local_planner_wrapper
                 {
                     value = costmap_->getCost(mx, my);
                     if (value == 255)
-                        ;
-                        //customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
-                    else if (value >= 254)
+                        customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
+                    else if (value >= 253)
                         customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
                 }
             }

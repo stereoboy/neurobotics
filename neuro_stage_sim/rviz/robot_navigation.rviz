@@ -11,6 +11,7 @@ Panels:
         - /Map1
         - /Local Planning1/Costmap1
         - /Global Planning1/Costmap1
+        - /Path (global)1
         - /Marker3
       Splitter Ratio: 0.5
     Tree Height: 813
@@ -39,7 +40,7 @@ Visualization Manager:
       Cell Size: 1
       Class: rviz/Grid
       Color: 160; 160; 164
-      Enabled: false
+      Enabled: true
       Line Style:
         Line Width: 0.0299999993
         Value: Lines
@@ -52,7 +53,7 @@ Visualization Manager:
       Plane: XY
       Plane Cell Count: 100
       Reference Frame: <Fixed Frame>
-      Value: false
+      Value: true
     - Alpha: 1
       Class: rviz/RobotModel
       Collision Enabled: false
@@ -328,22 +329,6 @@ Visualization Manager:
           Value: false
         robot_2/odom:
           Value: false
-        robot_3/base_footprint:
-          Value: true
-        robot_3/base_laser_link:
-          Value: true
-        robot_3/base_link:
-          Value: true
-        robot_3/odom:
-          Value: true
-        robot_4/base_footprint:
-          Value: true
-        robot_4/base_laser_link:
-          Value: true
-        robot_4/base_link:
-          Value: true
-        robot_4/odom:
-          Value: true
         wheel_left_link:
           Value: false
         wheel_right_link:
@@ -741,7 +726,7 @@ Visualization Manager:
       Radius: 0.0299999993
       Shaft Diameter: 0.100000001
       Shaft Length: 0.100000001
-      Topic: /move_base/NavfnROS/plan
+      Topic: /move_base/GlobalPlanner/plan
       Unreliable: false
       Value: true
     - Alpha: 1
@@ -801,7 +786,7 @@ Visualization Manager:
       Marker Topic: /dynamic_obstacle_marker_3
       Name: Marker
       Namespaces:
-        my_namespace: true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -809,12 +794,12 @@ Visualization Manager:
       Marker Topic: /dynamic_obstacle_marker_4
       Name: Marker
       Namespaces:
-        my_namespace: true
+        {}
       Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
-    Background Color: 255; 255; 255
+    Background Color: 48; 48; 48
     Default Light: true
     Fixed Frame: odom
     Frame Rate: 30
@@ -833,7 +818,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 22.8067322
+      Distance: 16.4260044
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
@@ -848,10 +833,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 1.07020247
+      Pitch: 0.770202756
       Target Frame: base_link
       Value: Orbit (rviz)
-      Yaw: 6.2800622
+      Yaw: 0.0468768366
     Saved: ~
 Window Geometry:
   Displays:
