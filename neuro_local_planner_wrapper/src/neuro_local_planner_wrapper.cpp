@@ -76,9 +76,6 @@ namespace neuro_local_planner_wrapper
         {
             ros::NodeHandle private_nh("~/" + name);
 
-            // TODO: remove
-            // debug_marker_pub_ = private_nh.advertise<visualization_msgs::Marker>( "goal_point", 0 );
-
             // Parameters
             std::string robot_type_str;
             private_nh.param("/robot_type", robot_type_str, std::string("holonomic"));
@@ -99,10 +96,6 @@ namespace neuro_local_planner_wrapper
 
 
             // Publishers & Subscribers
-            state_pub_ = private_nh.advertise<std_msgs::Bool>("new_round", 1);
-
-            //laser_scan_sub_ = private_nh.subscribe("/scan", 1000, &NeuroLocalPlannerWrapper::buildStateRepresentation, this);
-
             customized_costmap_pub_ = private_nh.advertise<nav_msgs::OccupancyGrid>("customized_costmap", 1);
 
             transition_msg_pub_ = private_nh.advertise<neuro_local_planner_wrapper::Transition>("transition", 1);
