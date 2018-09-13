@@ -171,6 +171,7 @@ class DQN:
             # Flag: don't learn the first experience
             self.first_experience = True
 
+            self.episode_count = 0
             self.reward_sum = 0
             self.total_rewards = collections.deque(maxlen=100)
 
@@ -311,8 +312,17 @@ class DQN:
 
         if is_episode_finished:
             self.total_rewards.append(self.reward_sum)
+            self.episode_count += 1
+            print("self.episode_count:{}".format(self.episode_count))
             self.reward_sum = 0
-            print("total_rewards:{}".format(self.total_rewards))
+            if self.episode_count%10 == 0:
+                print("total_rewards:{}".format(self.total_rewards))
+                if len(self.total_rewards) > 0:
+                    mean_return = np.mean(self.total_rewards)
+                else:
+                    mean_return = 0
+                summary  = self.session.run(self.summary_merged, feed_dict={self.mean_return: mean_return,})
+                self.summary_writer.add_summary(summary, self.episode_count)
 
             self.first_experience = True
 
