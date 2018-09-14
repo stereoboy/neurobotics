@@ -12,7 +12,11 @@ Panels:
         - /Local Planning1/Costmap1
         - /Global Planning1/Costmap1
         - /Path (global)1
-        - /Marker3
+        - /Marker1
+        - /Robot51
+        - /Robot61
+        - /Robot71
+        - /Robot81
       Splitter Ratio: 0.5
     Tree Height: 813
   - Class: rviz/Selection
@@ -315,20 +319,52 @@ Visualization Manager:
           Value: false
         robot_1/base_footprint:
           Value: false
-        robot_1/base_laser_link:
-          Value: false
         robot_1/base_link:
           Value: false
         robot_1/odom:
           Value: false
         robot_2/base_footprint:
           Value: false
-        robot_2/base_laser_link:
-          Value: false
         robot_2/base_link:
           Value: false
         robot_2/odom:
           Value: false
+        robot_3/base_footprint:
+          Value: true
+        robot_3/base_link:
+          Value: true
+        robot_3/odom:
+          Value: true
+        robot_4/base_footprint:
+          Value: true
+        robot_4/base_link:
+          Value: true
+        robot_4/odom:
+          Value: true
+        robot_5/base_footprint:
+          Value: true
+        robot_5/base_link:
+          Value: true
+        robot_5/odom:
+          Value: true
+        robot_6/base_footprint:
+          Value: true
+        robot_6/base_link:
+          Value: true
+        robot_6/odom:
+          Value: true
+        robot_7/base_footprint:
+          Value: true
+        robot_7/base_link:
+          Value: true
+        robot_7/odom:
+          Value: true
+        robot_8/base_footprint:
+          Value: true
+        robot_8/base_link:
+          Value: true
+        robot_8/odom:
+          Value: true
         wheel_left_link:
           Value: false
         wheel_right_link:
@@ -750,7 +786,7 @@ Visualization Manager:
     - Class: rviz/Marker
       Enabled: true
       Marker Topic: /dynamic_obstacle_marker_1
-      Name: Marker
+      Name: Robot1
       Namespaces:
         my_namespace: true
       Queue Size: 100
@@ -758,7 +794,7 @@ Visualization Manager:
     - Class: rviz/Marker
       Enabled: true
       Marker Topic: /dynamic_obstacle_marker_2
-      Name: Marker
+      Name: Robot2
       Namespaces:
         my_namespace: true
       Queue Size: 100
@@ -784,17 +820,49 @@ Visualization Manager:
     - Class: rviz/Marker
       Enabled: true
       Marker Topic: /dynamic_obstacle_marker_3
-      Name: Marker
+      Name: Robot3
       Namespaces:
-        {}
+        my_namespace: true
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
       Enabled: true
       Marker Topic: /dynamic_obstacle_marker_4
-      Name: Marker
+      Name: Robot4
       Namespaces:
-        {}
+        my_namespace: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /dynamic_obstacle_marker_5
+      Name: Robot5
+      Namespaces:
+        my_namespace: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /dynamic_obstacle_marker_6
+      Name: Robot6
+      Namespaces:
+        my_namespace: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /dynamic_obstacle_marker_7
+      Name: Robot7
+      Namespaces:
+        my_namespace: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /dynamic_obstacle_marker_8
+      Name: Robot8
+      Namespaces:
+        my_namespace: true
       Queue Size: 100
       Value: true
   Enabled: true
@@ -818,7 +886,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 16.4260044
+      Distance: 11.660079
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
@@ -844,7 +912,7 @@ Window Geometry:
   Height: 1026
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd000000040000000000000182000003bcfc0200000005fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000006400fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c0061007900730100000028000003bc000000dd00ffffff000000010000010f000003bcfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a005600690065007700730100000028000003bc000000b000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004a00000003efc0100000002fb0000000800540069006d00650000000000000004a00000030000fffffffb0000000800540069006d00650100000000000004500000000000000000000003f3000003bc00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd000000040000000000000182000003bcfc0200000005fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000006100fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c0061007900730100000028000003bc000000d700ffffff000000010000010f000003bcfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a005600690065007700730100000028000003bc000000ad00fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004a00000003efc0100000002fb0000000800540069006d00650000000000000004a00000030000fffffffb0000000800540069006d00650100000000000004500000000000000000000003f3000003bc00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
@@ -854,5 +922,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1680
-  X: 358
-  Y: 559
+  X: 272
+  Y: 231
