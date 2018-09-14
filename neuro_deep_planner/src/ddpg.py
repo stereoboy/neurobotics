@@ -5,7 +5,8 @@ from critic import CriticNetwork
 from actor import ActorNetwork
 from grad_inverter import GradInverter
 import tensorflow as tf
-from data_manager import DataManager
+#from data_manager import DataManager
+from dqn.dqn_replay_buffer import DQNReplayBuffer
 
 # For saving replay buffer
 import os
@@ -129,7 +130,8 @@ class DDPG:
 
             # initialize the experience data manger
             if self.mode == 'train':
-                self.data_manager = DataManager(BATCH_SIZE, self.experience_path, self.session)
+                #self.data_manager = DQNDataManager(BATCH_SIZE, self.experience_path, self.session)
+                self.data_manager = DQNReplayBuffer(BATCH_SIZE, self.experience_path, self.session, max_memory_size=1000000, start_size=2000)
 
             # After the graph has been filled add it to the summary writer
             self.summary_writer.add_graph(self.graph)
