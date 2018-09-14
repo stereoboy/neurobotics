@@ -56,6 +56,11 @@
 #include "tf/LinearMath/Transform.h"
 #include <std_srvs/Empty.h>
 
+#include <time.h>
+#include <boost/random.hpp>
+#include <boost/random/normal_distribution.hpp>
+#include <boost/random/uniform_real_distribution.hpp>
+
 #include <sys/syscall.h>
 
 unsigned int gettid()
@@ -64,6 +69,20 @@ unsigned int gettid()
 }
 
 #include "tf/transform_broadcaster.h"
+
+boost::mt19937 rng(time(0));
+//boost::mt19937 rng;
+
+// Initialize the random value
+double stddev = 0.2;
+boost::normal_distribution<> nd(0.0, stddev);
+boost::variate_generator<boost::mt19937&, boost::normal_distribution<> > var_nor(rng, nd);
+boost::random::uniform_real_distribution<double> var_uniform(-1.0, 1.0);
+
+float clip(float n, float lower, float upper)
+{
+    return std::max(lower, std::min(n, upper));
+}
 
 #define USAGE "stageros <worldfile>"
 #define IMAGE "image"
@@ -159,6 +178,10 @@ private:
     ros::Time base_last_globalpos_time;
     // Last published global pose of each robot
     std::vector<Stg::Pose> base_last_globalpos;
+
+    // Random Movements for moving obstacles
+    std::vector<std::vector<float> > movements;
+
 
 public:
     // Constructor; stage itself needs argc/argv.  fname is the .world file
@@ -305,10 +328,34 @@ StageNode::cmdvelReceived(int idx, const boost::shared_ptr<geometry_msgs::Twist 
     // TODO
     for (size_t r = 1; r < this->positionmodels.size(); r++)
     {
+#if 0
         if (r%2)
             this->positionmodels[r]->SetSpeed(0.2, 0.0, 0.2);
         else
             this->positionmodels[r]->SetSpeed(-0.3, 0.0, -0.3);
+#else
+//        if (r < (this->positionmodels.size() + 1)/2)
+//        {
+//            if (r%2)
+//                this->positionmodels[r]->SetSpeed(0.2, 0.0, 0.2);
+//            else
+//                this->positionmodels[r]->SetSpeed(-0.3, 0.0, -0.3);
+//        }
+//        else
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                float theta = 0.15;
+                float sigma = 0.2;
+                float mu = 0.0;
+                float state = this->movements[r][i];
+                float temp = theta*(mu - state) + var_nor();
+                //float dt = theta*(mu - state) + var_uniform(rng);
+                this->movements[r][i] = clip(state + temp, -0.3, 0.3);
+            }
+            this->positionmodels[r]->SetSpeed(this->movements[r][0], this->movements[r][1], 0.0);
+        }
+#endif
     }
 
     this->base_last_cmd = this->sim_time;
@@ -495,6 +542,7 @@ StageNode::SubscribeModels()
     // advertising reset service
     reset_srv_ = n_.advertiseService("reset_positions", &StageNode::cb_reset_srv, this);
 
+    // for moving obstacles
     ROS_INFO("neuro_stage_ros setup moving obstacles' initial_positions");
     std::vector<double> initial_positions;
     for (size_t r = 1; r < this->initial_poses.size(); r++)
@@ -503,6 +551,13 @@ StageNode::SubscribeModels()
         initial_positions.push_back(this->initial_poses[r].y);
     }
     n_.setParam("initial_positions", initial_positions);
+
+    for (size_t r = 0; r < this->initial_poses.size(); r++)
+    {
+        std::vector<float> zero_move(2, 0);
+        this->movements.push_back(zero_move);
+    }
+
 
     return(0);
 }
