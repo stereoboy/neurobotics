@@ -51,7 +51,7 @@ MAX_NOISE_STEP = 3000000
 
 class DDPG:
 
-    def __init__(self, mode, action_bounds, data_path):
+    def __init__(self, mode, state_shapes, action_bounds, data_path):
 
         self.mode = mode
 
@@ -93,13 +93,11 @@ class DDPG:
                 self.viewer = CostmapVisualizer()
 
             # Hardcode input size and action size
-            self.height = 86
-            self.width = self.height
             self.depth = 4
             self.action_dim = len(action_bounds)
 
             # Initialize the current action and the old action and old state for setting experiences
-            self.old_state = np.zeros((self.width, self.height, self.depth), dtype='int8')
+            self.old_state = [np.zeros((d, h, w), dtype='int8') for w, h, d in state_shapes]
             self.old_action = np.ones(2, dtype='float')
             self.network_action = np.zeros(2, dtype='float')
             self.noise_action = np.zeros(2, dtype='float')
@@ -113,11 +111,14 @@ class DDPG:
             self.summary_writer = tf.summary.FileWriter(self.tflog_path)
 
             # Initialize actor and critic networks
-            self.map_input = tf.placeholder("float", [None, self.height, self.height, self.depth], name="map_input")
+            self.map_inputs = []
+            for idx, shape in enumerate(state_shapes):
+                d, h, w = shape
+                self.map_inputs.append(tf.placeholder("float", [None, d, h, w], name="map_input_{}".format(idx)))
             self.training_step_variable = tf.Variable(0, name='global_step', trainable=False)
-            self.actor_network = ActorNetwork(self.map_input, self.action_dim, self.session,
+            self.actor_network = ActorNetwork(self.map_inputs, self.action_dim, self.session,
                                               self.summary_writer, self.training_step_variable)
-            self.critic_network = CriticNetwork(self.map_input, self.action_dim, self.session,
+            self.critic_network = CriticNetwork(self.map_inputs, self.action_dim, self.session,
                                                 self.summary_writer)
 
             self.mean_return = tf.placeholder(tf.float32, name="mean_return")
@@ -177,29 +178,19 @@ class DDPG:
             self.data_manager.check_for_enqueue()
 
             # get the next random batch from the data manger
-            state_batch, \
+            state_batch_list, \
                 action_batch, \
                 reward_batch, \
-                next_state_batch, \
+                next_state_batch_list, \
                 is_episode_finished_batch = self.data_manager.get_next_batch()
 
-            state_batch = np.divide(state_batch, 100.0)
-            next_state_batch = np.divide(next_state_batch, 100.0)
-
-            # Are we visualizing the first state batch for debugging?
-            # If so: We have to scale up the values for grey scale before plotting
-            if self.visualize_input:
-                state_batch_np = np.asarray(state_batch)
-                state_batch_np = np.multiply(state_batch_np, -100.0)
-                state_batch_np = np.add(state_batch_np, 100.0)
-                self.viewer.set_data(state_batch_np)
-                self.viewer.run()
-                self.visualize_input = False
+            state_batch_list = [np.divide(state_batch, 100.0) for state_batch in state_batch_list]
+            next_state_batch_list = [np.divide(next_state_batch, 100.0) for next_state_batch in next_state_batch_list]
 
             # Calculate y for the td_error of the critic
             y_batch = []
-            next_action_batch = self.actor_network.target_evaluate(next_state_batch)
-            q_value_batch = self.critic_network.target_evaluate(next_state_batch, next_action_batch)
+            next_action_batch = self.actor_network.target_evaluate(next_state_batch_list)
+            q_value_batch = self.critic_network.target_evaluate(next_state_batch_list, next_action_batch)
 
             for i in range(0, BATCH_SIZE):
                 if is_episode_finished_batch[i]:
@@ -208,16 +199,16 @@ class DDPG:
                     y_batch.append(reward_batch[i] + GAMMA * q_value_batch[i])
 
             # Now that we have the y batch lets train the critic
-            self.critic_network.train(self.training_step, y_batch, state_batch, action_batch)
+            self.critic_network.train(self.training_step, y_batch, state_batch_list, action_batch)
 
             # Get the action batch so we can calculate the action gradient with it
             # Then get the action gradient batch and adapt the gradient with the gradient inverting method
-            action_batch_for_gradients = self.actor_network.evaluate(state_batch)
-            q_gradient_batch = self.critic_network.get_q_gradient(state_batch, action_batch_for_gradients)
+            action_batch_for_gradients = self.actor_network.evaluate(state_batch_list)
+            q_gradient_batch = self.critic_network.get_q_gradient(state_batch_list, action_batch_for_gradients)
             q_gradient_batch = self.grad_inv.invert(q_gradient_batch, action_batch_for_gradients)
 
             # Now we can train the actor
-            self.actor_network.train(self.training_step, q_gradient_batch, state_batch)
+            self.actor_network.train(self.training_step, q_gradient_batch, state_batch_list)
 
             # Update time step
             #self.training_step += 1
@@ -260,8 +251,8 @@ class DDPG:
     def get_action(self, state):
 
         # normalize the state
-        state = state.astype(float)
-        state = np.divide(state, 100.0)
+        state = [s.astype(float) for s in state]
+        state = [np.divide(s, 100.0) for s in state]
 
         # Get the action
         self.action = self.actor_network.get_action(state)

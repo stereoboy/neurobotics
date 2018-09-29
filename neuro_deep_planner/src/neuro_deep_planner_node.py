@@ -9,6 +9,8 @@ import os
 import tensorflow as tf
 import datetime
 import math
+import json
+import sys
 
 TIMEOUT = 100
 PRINT_INTERVAL = 10
@@ -38,10 +40,9 @@ def main():
     print("robot_type: {}".format(ros_handler.robot_type))
     print("###################################################################")
 
-    agent = DDPG(FLAGS.mode, action_bounds_dict[ros_handler.robot_type], FLAGS.dir)
+    agent = DDPG(FLAGS.mode, [(4, 86, 86)], action_bounds_dict[ros_handler.robot_type], FLAGS.dir)
     #agent = DQN(FLAGS.mode, action_bounds_dict[ros_handler.robot_type], 3, FLAGS.dir)
 
-    import json
     data = {'controller_frequency': ros_handler.controller_frequency, 'transition_frame_interval': ros_handler.transition_frame_interval}
     with open(os.path.join( agent.data_path, 'configuration.txt'), 'w') as f:
         json.dump(data, f, ensure_ascii=False)
@@ -62,7 +63,6 @@ def main():
         real_current_time = datetime.datetime.now()
         if FLAGS.mode == 'train' and (real_current_time - last_msg_time).seconds >= TIMEOUT:
             rospy.logerr("It's been over 60 seconds since the last data came in.")
-            import sys
             sys.exit()
 
         elapsed_time = (real_current_time - real_start_time)
@@ -74,11 +74,11 @@ def main():
             last_msg_time = datetime.datetime.now()
             if not ros_handler.is_episode_finished:
                 # Send back the action to execute
-                ros_handler.publish_action(agent.get_action(ros_handler.state))
+                ros_handler.publish_action(agent.get_action([ros_handler.state]))
 
             # Safe the past state and action + the reward and new state into the replay buffer
             if FLAGS.mode == 'train':
-                agent.set_experience(ros_handler.state, ros_handler.reward, ros_handler.is_episode_finished)
+                agent.set_experience([ros_handler.state], ros_handler.reward, ros_handler.is_episode_finished)
 #                    agent.train()
 #                    agent.train()
 
