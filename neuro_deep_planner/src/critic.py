@@ -40,7 +40,7 @@ PLOT_STEP = 10
 
 class CriticNetwork:
 
-    def __init__(self, map_input, action_size, session, summary_writer):
+    def __init__(self, map_inputs, action_size, session, summary_writer):
         def getter_ema(ema):
             def ema_getter(getter, name, *args, **kwargs):
                 var = getter(name, *args, **kwargs)
@@ -61,7 +61,7 @@ class CriticNetwork:
             self.action_size = action_size
 
             # Create critic network
-            self.map_input = map_input
+            self.map_inputs = map_inputs
             self.action_input = tf.placeholder("float", [None, action_size], name="action_input")
             self.y_input = tf.placeholder("float", [None, 1], name="y_input")
 
@@ -128,27 +128,31 @@ class CriticNetwork:
         # new setup
         weight_decay = 1e-2
 
-        # conv layer1
-        out = tf.layers.conv2d(inputs=self.map_input, filters=FILTER1, kernel_size=RECEPTIVE_FIELD1, strides=STRIDE1, padding='VALID',
-                kernel_initializer=self.custom_initializer_for_conv(),
-                kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
-                activation=tf.nn.relu)
-        # conv layer2
-        out = tf.layers.conv2d(inputs=out, filters=FILTER2, kernel_size=RECEPTIVE_FIELD2, strides=STRIDE2, padding='VALID',
-                kernel_initializer=self.custom_initializer_for_conv(),
-                kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
-                activation=tf.nn.relu)
-        # conv layer3
-        out = tf.layers.conv2d(inputs=out, filters=FILTER3, kernel_size=RECEPTIVE_FIELD3, strides=STRIDE3, padding='VALID',
-                kernel_initializer=self.custom_initializer_for_conv(),
-                kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
-                activation=tf.nn.relu)
+        outs = []
+        for single_input in self.map_inputs:
+            # conv layer1
+            out = tf.layers.conv2d(inputs=single_input, filters=FILTER1, kernel_size=RECEPTIVE_FIELD1, strides=STRIDE1, padding='VALID',
+                    data_format='channels_first',
+                    kernel_initializer=self.custom_initializer_for_conv(),
+                    kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                    activation=tf.nn.relu)
+            # conv layer2
+            out = tf.layers.conv2d(inputs=out, filters=FILTER2, kernel_size=RECEPTIVE_FIELD2, strides=STRIDE2, padding='VALID',
+                    data_format='channels_first',
+                    kernel_initializer=self.custom_initializer_for_conv(),
+                    kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                    activation=tf.nn.relu)
+            # conv layer3
+            out = tf.layers.conv2d(inputs=out, filters=FILTER3, kernel_size=RECEPTIVE_FIELD3, strides=STRIDE3, padding='VALID',
+                    data_format='channels_first',
+                    kernel_initializer=self.custom_initializer_for_conv(),
+                    kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                    activation=tf.nn.relu)
+            out = tf.layers.flatten(out)
+            outs.append(out)
 
         # dense layer1
-        size = 1
-        for n in out.get_shape().as_list()[1:]:
-            size *= n
-        out = tf.reshape(out, [-1, size])
+        out = tf.concat(outs, axis=1)
         out = tf.concat([out, self.action_input], axis=1)
         out = tf.layers.dense(inputs=out, units=FULLY_LAYER1_SIZE,
                 kernel_initializer=self.custom_initializer_for_dense(),
@@ -170,7 +174,11 @@ class CriticNetwork:
 
         return out
 
-    def train(self, training_step, y_batch, state_batch, action_batch):
+    def train(self, training_step, y_batch, state_batch_list, action_batch):
+
+        feed_dict={self.y_input: y_batch, self.action_input: action_batch,}
+        for idx, single_batch in enumerate(state_batch_list):
+            feed_dict[self.map_inputs[idx]] = single_batch
 
         # Run optimizer and compute some summary values
         if training_step%100 == 0:
@@ -178,46 +186,35 @@ class CriticNetwork:
             run_metadata = tf.RunMetadata()
 
             summary, td_error_value, _ = self.sess.run([self.summary_merged, self.td_error, self.compute_ema],
-                    feed_dict={
-                                self.y_input: y_batch,
-                                self.map_input: state_batch,
-                                self.action_input: action_batch,
-                                },
-                    options=run_options, run_metadata=run_metadata)
+                    feed_dict=feed_dict, options=run_options, run_metadata=run_metadata)
             self.summary_writer.add_run_metadata(run_metadata, 'c step%d' % training_step)
             self.summary_writer.add_summary(summary, training_step)
         else:
-            td_error_value, _ = self.sess.run([self.td_error, self.compute_ema],
-                                                feed_dict={
-                                                    self.y_input: y_batch,
-                                                    self.map_input: state_batch,
-                                                    self.action_input: action_batch,
-                                                    })
+            td_error_value, _ = self.sess.run([self.td_error, self.compute_ema], feed_dict=feed_dict)
 
 
         # Increment the td error plot variable for td error average plotting
         self.td_error_plot += td_error_value
 
-    def get_q_gradient(self, state_batch, action_batch):
+    def get_q_gradient(self, state_batch_list, action_batch):
+        feed_dict={self.action_input: action_batch}
+        for idx, single_batch in enumerate(state_batch_list):
+            feed_dict[self.map_inputs[idx]] = single_batch
 
         # Get the action gradients for the actor optimization
-        q_gradients = self.sess.run(self.q_gradients,
-                                    feed_dict={
-                                                self.map_input: state_batch,
-                                                self.action_input: action_batch
-                                                })[0]
+        q_gradients = self.sess.run(self.q_gradients, feed_dict=feed_dict)[0]
         return q_gradients
 
-    def evaluate(self, state_batch, action_batch):
-        return self.sess.run(self.Q_output,
-                            feed_dict={
-                                        self.map_input: state_batch,
-                                        self.action_input: action_batch
-                                        })
+    def evaluate(self, state_batch_list, action_batch):
+        feed_dict={self.action_input: action_batch}
+        for idx, single_batch in enumerate(state_batch_list):
+            feed_dict[self.map_inputs[idx]] = single_batch
 
-    def target_evaluate(self, state_batch, action_batch):
-        return self.sess.run(self.Q_output_target,
-                            feed_dict={
-                                        self.map_input: state_batch,
-                                        self.action_input: action_batch
-                                        })
+        return self.sess.run(self.Q_output, feed_dict=feed_dict)
+
+    def target_evaluate(self, state_batch_list, action_batch):
+        feed_dict={self.action_input: action_batch}
+        for idx, single_batch in enumerate(state_batch_list):
+            feed_dict[self.map_inputs[idx]] = single_batch
+
+        return self.sess.run(self.Q_output_target, feed_dict=feed_dict)
