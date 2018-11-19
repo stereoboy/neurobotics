@@ -9,11 +9,13 @@ import collections
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import CompressedImage
+from sensor_msgs.msg import ChannelFloat32
 from geometry_msgs.msg import Twist, Vector3
 from neuro_local_planner_wrapper.msg import Transition
 import threading
 import json
 import os
+import glob
 import datetime
 import math
 
@@ -37,12 +39,22 @@ class FrontEnd(object):
         raise NotImplementedError
 
     def step(self):
+        print(">>>step()")
         with self.get_msg_lock():
-            print("step()")
             state   = self.build_state()
             reward  = self.calculate_reward(state)
             done    = self.decide_done(state, reward)
+            print("<<<step()")
             return state, reward, done
+
+    def is_ready(self):
+        raise NotImplementedError
+
+    def frame_begin(self):
+        raise NotImplementedError
+
+    def frame_end(self):
+        raise NotImplementedError
 
     def publish_action(self, action):
         raise NotImplementedError
@@ -141,6 +153,15 @@ class CostmapROSFrontEnd(FrontEnd):
             # We have received a new msg
             self.new_msg = True
 
+    def is_ready(self):
+        return self.new_msg
+
+    def frame_begin(self):
+        pass
+
+    def frame_end(self):
+        self.new_msg = False
+
     def publish_action(self, action):
 
         # Generate msg output
@@ -157,66 +178,6 @@ class CostmapROSFrontEnd(FrontEnd):
         # Send the action back
         self.__pub.publish(vel_cmd)
         self.__pub2.publish(vel_cmd)
-
-class VideoROSFrontEnd(FrontEnd):
-    def __init__(self):
-
-        self.bridge = CvBridge()
-        self.cv_image = None
-        self.thread_lock = threading.Lock()
-        self.sub = rospy.Subscriber("/ue4/main_cam/label/image", Image, self.video_callback, queue_size=1)
-        self.new_msg = False
-        self.buffer = collections.deque(maxlen=FRAME_SIZE)
-
-        self.h_divider  = None
-
-    def get_msg_lock(self):
-        return self.thread_lock
-
-    def build_state(self):
-        with self.thread_lock:
-            # video state only
-            if len(self.buffer) == FRAME_SIZE:
-                transposed = [ np.transpose(x, (2, 0, 1)) for x in self.buffer]
-                stacked = np.concatenate(transposed, axis=0)
-                print(stacked.shape)
-                return stacked
-
-    def calculate_reward(self, state):
-        return 0.0
-
-    def decide_done(self, state, reward):
-        return False
-
-    def video_callback(self, img_msg):
-        print("video_callback")
-        self.cv_image = self.bridge.imgmsg_to_cv2(img_msg, desired_encoding="bgr8")
-
-        with self.thread_lock:
-            self.buffer.append(self.cv_image)
-        self.new_msg = True
-    
-    def show_input(self):
-        print("show_input")
-        disp = None
-        with self.thread_lock:
-            if len(self.buffer) == FRAME_SIZE:
-                if self.h_divider is None:
-                    self.h_divider = np.full((self.cv_image.shape[0], 10, self.cv_image.shape[2]), (0, 0, 0), dtype=np.uint8)
-
-                temp = []
-                move = np.zeros(self.buffer[0].shape, dtype=np.float32)
-                for buf in self.buffer:
-                    temp.append(buf)
-                    temp.append(self.h_divider)
-                    move += buf
-                move /= FRAME_SIZE
-                temp.append(move.astype(np.uint8))
-                disp = np.hstack(temp)
-        if disp is not None:
-            print(disp.shape)
-            print(disp.dtype)
-            cv2.imshow('video_transition', disp)
 
 class CombinedFrontEnd(FrontEnd):
     def __init__(self, *front_ends):
