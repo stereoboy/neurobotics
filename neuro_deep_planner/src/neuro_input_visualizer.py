@@ -2,6 +2,7 @@
 
 import rospy
 import numpy as np
+import sys
 
 import cv2
 
@@ -40,7 +41,7 @@ class VisualizerRunnable(object):
         self.subscriber.unregister()
 
         if transition.is_episode_finished:
-            print(transition.reward)
+            print("reward after episode: {}".format(transition.reward))
 
         #print("-->{}chX{}px{}p".format(transition.depth, transition.width, transition.height))
 
@@ -53,8 +54,11 @@ class VisualizerRunnable(object):
         # Make this a state batch with just one state in the batch
 
         if transition.reward >= 10.0:
-            h_divider = np.full((data_3d.shape[0], 10), 100)
-            v_divider = np.full((10, data_3d.shape[1]*4+30), 100)
+#            h_divider = np.full((data_3d.shape[0], 10), 100)
+#            v_divider = np.full((10, data_3d.shape[1]*4+30), 100)
+            h_divider = np.full((data_3d.shape[0], 10), 75)
+            v_divider = np.full((10, data_3d.shape[1]*4+30), 75)
+            pass
         elif transition.reward < 0.0:
             h_divider = np.full((data_3d.shape[0], 10), 0)
             v_divider = np.full((10, data_3d.shape[1]*4+30), 0)
@@ -117,22 +121,26 @@ class VisualizerRunnable(object):
         cv2.namedWindow('move_img')
         cv2.moveWindow('move_img', 100, 100)
         counter = 0
-        while True:
-            if self.output is not None:
-                disp = cv2.resize(self.output.astype(np.uint8), (self.output.shape[1]*5, self.output.shape[0]*5))
-                cv2.imshow('transition', disp)
-                #cv2.imwrite('transition' + str(counter) + '.png', disp)
-                counter += 1
-                self.output = None
-            #if self.costmap is not None:
-            #    cv2.imshow('costmap', cv2.resize(self.costmap, (self.costmap.shape[1]*5, self.costmap.shape[0]*5)))
-            #if self.costmaps is not None:
-            #    cv2.imshow('costmapx16', cv2.resize(self.costmaps, (self.costmaps.shape[1]*4, self.costmaps.shape[0]*4)))
-            if self.move_img is not None:
-                cv2.imshow('move_img', cv2.resize(self.move_img, (self.move_img.shape[1]*4, self.move_img.shape[0]*4)))
-            ch = cv2.waitKey(1)
-            if ch == 27:
-                break
+        try:
+            while not rospy.is_shutdown():
+                if self.output is not None:
+                    disp = cv2.resize(self.output.astype(np.uint8), (self.output.shape[1]*5, self.output.shape[0]*5))
+                    cv2.imshow('transition', disp)
+                    #cv2.imwrite('transition' + str(counter) + '.png', disp)
+                    counter += 1
+                    self.output = None
+                #if self.costmap is not None:
+                #    cv2.imshow('costmap', cv2.resize(self.costmap, (self.costmap.shape[1]*5, self.costmap.shape[0]*5)))
+                #if self.costmaps is not None:
+                #    cv2.imshow('costmapx16', cv2.resize(self.costmaps, (self.costmaps.shape[1]*4, self.costmaps.shape[0]*4)))
+                if self.move_img is not None:
+                    cv2.imshow('move_img', cv2.resize(self.move_img, (self.move_img.shape[1]*4, self.move_img.shape[0]*4)))
+                ch = cv2.waitKey(1)
+                if ch == 27:
+                    break
+        except rospy.ROSInterruptException:
+            print("Goodbye~")
+            sys.exit()
 
 def main():
 
