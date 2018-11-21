@@ -25,8 +25,6 @@ class DQNReplayBuffer(object):
 
     def enough_data(self):
         if len(self.buffer) >= self.start_size:
-            if len(self.buffer)%100 == 0:
-                print("------------------------------------------------------------------------------------>current_buffer_size: {}".format(len(self.buffer)))
             return True
         else:
             return False
@@ -47,6 +45,8 @@ class DQNReplayBuffer(object):
     def store_experience_to_file(self, state, action, reward, next_state, is_episode_finished):
         #print(state, action, reward, next_state, is_episode_finished)
         self.buffer.append(Experience(state, action, reward, next_state, is_episode_finished))
+        if len(self.buffer)%100 == 0:
+            print("------------------------------------------------------------------------------------>current_buffer_size: {}".format(len(self.buffer)))
     
     def check_for_enqueue(self):
         pass
