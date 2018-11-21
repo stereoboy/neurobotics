@@ -56,7 +56,7 @@ class PlannerNode(object):
             self.transition_frame_interval = rospy.get_param("/move_base/NeuroLocalPlannerWrapper/transition_frame_interval")
 
         self.timeout_count = 0
-        self.max_timeout_count = 100
+        self.max_timeout_count = 30
 
         self.reset_pub = rospy.Publisher("/ue4/reset", Float32, queue_size=10)
 
@@ -71,6 +71,7 @@ class PlannerNode(object):
 
     def publish_reset(self):
         reset_val = Float32()
+        reset_val.data = 1.0
         self.reset_pub.publish(reset_val)
 
     def update_im(self, *args):
@@ -111,8 +112,8 @@ class PlannerNode(object):
                     self.front_end.frame_begin()
                     last_msg_time = datetime.datetime.now()
 
-                    print("[{}]----------------------------------------------->timeout_count: {}".format(threading.current_thread(), self.timeout_count))
-                    if self.reward == 0:
+                    print("[{}]----------------------------------------------->timeout_count: {}-{}".format(threading.current_thread(), self.timeout_count, self.reward))
+                    if self.reward <= 0.0:
                         self.timeout_count += 1
                         if self.timeout_count > self.max_timeout_count:
                             self.publish_reset()
@@ -122,7 +123,7 @@ class PlannerNode(object):
 
                     if FLAGS.gui:
                         self.front_end.show_input()
-                    if not self.done:
+                    if not self.done and self.state is not None:
                         # Send back the action to execute
                         if isinstance(self.state, list):
                             self.front_end.publish_action(self.agent.get_action(self.state))
@@ -149,7 +150,11 @@ class PlannerNode(object):
         self.state, self.reward, self.done = self.front_end.step()
 
         if self.done:
+            self.front_end.reset()
             self.skip_count = 5
+            rospy.logdebug("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+            rospy.logdebug("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+            rospy.logdebug("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
         if self.skip_count:
             self.skip_count -= 1
             return
