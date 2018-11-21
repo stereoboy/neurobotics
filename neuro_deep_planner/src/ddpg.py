@@ -6,7 +6,7 @@ from actor import ActorNetwork
 from grad_inverter import GradInverter
 import tensorflow as tf
 #from data_manager import DataManager
-from dqn.dqn_replay_buffer import DQNReplayBuffer
+from data_manager.replay_buffer import DQNReplayBuffer
 
 # For saving replay buffer
 import os
@@ -175,6 +175,7 @@ class DDPG:
     def train(self):
         # Check if the buffer is big enough to start training
         if self.data_manager.enough_data():
+            print("train()")
             self.data_manager.check_for_enqueue()
 
             # get the next random batch from the data manger
