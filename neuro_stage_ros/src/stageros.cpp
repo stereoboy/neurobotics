@@ -322,6 +322,7 @@ StageNode::cmdvelReceived(int idx, const boost::shared_ptr<geometry_msgs::Twist 
 {
     ROS_INFO(">>>[%d]%s(%d)", gettid(), __FUNCTION__, idx);
     boost::mutex::scoped_lock lock(msg_lock);
+    this->world->LockSyncMutex();
     this->positionmodels[idx]->SetSpeed(msg->linear.x,
                                         msg->linear.y,
                                         msg->angular.z);
@@ -359,6 +360,7 @@ StageNode::cmdvelReceived(int idx, const boost::shared_ptr<geometry_msgs::Twist 
     }
 
     this->base_last_cmd = this->sim_time;
+    this->world->UnlockSyncMutex();
     ROS_INFO("<<<[%d]%s(%d)", gettid(), __FUNCTION__, idx);
 }
 
@@ -367,6 +369,7 @@ StageNode::poseReceived(int idx, const boost::shared_ptr<geometry_msgs::Pose con
 {
     ROS_INFO(">>>[%d]%s(%d)", gettid(), __FUNCTION__, idx);
     boost::mutex::scoped_lock lock(msg_lock);
+    this->world->LockSyncMutex();
     Stg::Pose pose;
 
     double roll, pitch, yaw;
@@ -385,6 +388,7 @@ StageNode::poseReceived(int idx, const boost::shared_ptr<geometry_msgs::Pose con
         this->positionmodels[r]->SetPose(this->initial_poses[r]);
         this->positionmodels[r]->SetStall(false);
     }
+    this->world->UnlockSyncMutex();
     ROS_INFO("<<<[%d]%s(%d)", gettid(), __FUNCTION__, idx);
 }
 
@@ -579,6 +583,7 @@ StageNode::WorldCallback()
 {
     //ROS_INFO("[%d]%s()", gettid(), __FUNCTION__);
     boost::mutex::scoped_lock lock(msg_lock);
+    this->world->LockSyncMutex();
 
     // Publish a marker for visualization of the two dynamic obstacles
     visualization_msgs::Marker marker;
@@ -641,6 +646,7 @@ StageNode::WorldCallback()
     if(this->sim_time.sec == 0 && this->sim_time.nsec == 0)
     {
         ROS_DEBUG("Skipping initial simulation step, to avoid publishing clock==0");
+        this->world->UnlockSyncMutex();
         return;
     }
 
@@ -952,6 +958,7 @@ StageNode::WorldCallback()
 
         }
     }
+    this->world->UnlockSyncMutex();
 
     this->base_last_globalpos_time = this->sim_time;
     rosgraph_msgs::Clock clock_msg;
