@@ -37,13 +37,6 @@ PLOT_STEP = 10
 class ActorNetwork:
 
     def __init__(self, map_inputs, action_size, session, summary_writer, training_step_variable):
-        def getter_ema(ema):
-            def ema_getter(getter, name, *args, **kwargs):
-                var = getter(name, *args, **kwargs)
-                ema_var = ema.average(var)
-                print(var, ema_var)
-                return ema_var if ema_var else var
-            return ema_getter
 
         self.graph = session.graph
 
@@ -68,6 +61,12 @@ class ActorNetwork:
                 self.actor_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
                 print(self.actor_variables)
 
+            with tf.variable_scope('actor/target_network'):
+                self.action_output_target = self.create_base_network()
+
+            net_vars        =  tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='actor/network')
+            target_net_vars =  tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='actor/target_network')
+
             with tf.name_scope('actor/regularization'):
                 regularization_loss = tf.losses.get_regularization_loss(scope='actor/network')
 
@@ -81,20 +80,34 @@ class ActorNetwork:
                 self.optimizer = tf.train.AdamOptimizer(LEARNING_RATE).apply_gradients(zip(self.parameters_gradients,
                                                                                        self.actor_variables), global_step=training_step_variable)
 
-            with tf.control_dependencies([self.optimizer]):
-                with tf.name_scope('actor/moving_average'):
-                    self.ema_obj = tf.train.ExponentialMovingAverage(decay=TARGET_DECAY)
-                    self.compute_ema = self.ema_obj.apply(self.actor_variables)
+            with tf.name_scope('actor/target_update'):
+                with tf.name_scope('init_update'):
+                    print("================================================================================================================================")
+                    init_updates = []
+                    for var, target_var in zip(net_vars, target_net_vars):
+                        print("{} <- {}".format(target_var, var))
+                        init_updates.append(tf.assign(target_var, var))
+                    print("================================================================================================================================")
 
-            # Create target actor network
-            with tf.variable_scope('actor'):
-                with tf.name_scope('target_network'):
-                    with tf.variable_scope('network', reuse=tf.AUTO_REUSE, custom_getter=getter_ema(self.ema_obj)):
-                        self.action_output_target = self.create_base_network()
+                    self.init_update = tf.group(*init_updates)
+
+                with tf.name_scope('update'):
+                    print("================================================================================================================================")
+                    updates = []
+                    for var, target_var in zip(net_vars, target_net_vars):
+                        print("{} <- {}".format(target_var, var))
+                        updates.append(tf.assign(target_var, TARGET_DECAY*target_var + (1 - TARGET_DECAY)*var))
+                    print("================================================================================================================================")
+
+                    with tf.control_dependencies([self.optimizer]):
+                        self.update = tf.group(*updates)
 
             # Variables for plotting
             self.actions_mean_plot = [0, 0]
             self.summary_merged = tf.summary.merge([actor_gradient_summary, regularization_loss_summary])
+
+    def init(self):
+        self.sess.run([self.init_update])
 
     def custom_initializer_for_conv(self):
         return tf.variance_scaling_initializer(scale=1.0/3.0, mode='fan_in', distribution='uniform', seed=None, dtype=tf.float32)
@@ -168,12 +181,12 @@ class ActorNetwork:
         if training_step%100 == 0:
             run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
             run_metadata = tf.RunMetadata()
-            summary, _ = self.sess.run([self.summary_merged, self.compute_ema], feed_dict=feed_dict,
+            summary, _ = self.sess.run([self.summary_merged, self.update], feed_dict=feed_dict,
                                                                                 options=run_options, run_metadata=run_metadata)
             self.summary_writer.add_run_metadata(run_metadata, 'a step%d' % training_step)
             self.summary_writer.add_summary(summary, training_step)
         else:
-            self.sess.run(self.compute_ema, feed_dict=feed_dict)
+            self.sess.run(self.update, feed_dict=feed_dict)
 
     def get_action(self, state):
         feed_dict = {}

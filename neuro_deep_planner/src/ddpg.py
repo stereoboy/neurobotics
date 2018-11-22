@@ -116,10 +116,8 @@ class DDPG:
                 d, h, w = shape
                 self.map_inputs.append(tf.placeholder("float", [None, d, h, w], name="map_input_{}".format(idx)))
             self.training_step_variable = tf.Variable(0, name='global_step', trainable=False)
-            self.actor_network = ActorNetwork(self.map_inputs, self.action_dim, self.session,
-                                              self.summary_writer, self.training_step_variable)
-            self.critic_network = CriticNetwork(self.map_inputs, self.action_dim, self.session,
-                                                self.summary_writer)
+            self.actor_network = ActorNetwork(self.map_inputs, self.action_dim, self.session, self.summary_writer, self.training_step_variable)
+            self.critic_network = CriticNetwork(self.map_inputs, self.action_dim, self.session, self.summary_writer)
 
             self.mean_return = tf.placeholder(tf.float32, name="mean_return")
             mean_return_summary = tf.summary.scalar("mean_return_val", self.mean_return)
@@ -153,6 +151,8 @@ class DDPG:
                 else:
                     print("Couldn't find checkpoint to restore from. Starting over.")
                     self.session.run(tf.global_variables_initializer())
+                    self.actor_network.init()
+                    self.critic_network.init()
 
             tf.train.start_queue_runners(sess=self.session)
             time.sleep(1)

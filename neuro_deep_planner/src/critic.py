@@ -41,13 +41,6 @@ PLOT_STEP = 10
 class CriticNetwork:
 
     def __init__(self, map_inputs, action_size, session, summary_writer):
-        def getter_ema(ema):
-            def ema_getter(getter, name, *args, **kwargs):
-                var = getter(name, *args, **kwargs)
-                ema_var = ema.average(var)
-                print(var, ema_var)
-                return ema_var if ema_var else var
-            return ema_getter
 
         self.graph = session.graph
 
@@ -71,6 +64,12 @@ class CriticNetwork:
                 # Get all the variables in the critic network for exponential moving average, create ema op
                 self.critic_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
                 print(self.critic_variables)
+
+            with tf.variable_scope('critic/target_network'):
+                self.Q_output_target = self.create_base_network()
+
+            net_vars        =  tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='critic/network')
+            target_net_vars =  tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='critic/target_network')
 
                 # L2 Regularization for all Variables
             with tf.name_scope('critic/regularization'):
@@ -98,22 +97,35 @@ class CriticNetwork:
                 for i in range(q_gradients_means.shape.as_list()[0]):
                     q_gradients_summary.append(tf.summary.scalar("q_gradient%d"%(i), q_gradients_means[i]))
 
-            with tf.control_dependencies([self.optimizer]):
-                with tf.name_scope('critic/moving_average'):
-                    self.ema_obj = tf.train.ExponentialMovingAverage(decay=TARGET_DECAY)
-                    self.compute_ema = self.ema_obj.apply(self.critic_variables)
-                    print([self.ema_obj.average(x) for x in self.critic_variables])
+            with tf.name_scope('critic/target_update'):
+                with tf.name_scope('init_update'):
+                    print("================================================================================================================================")
+                    init_updates = []
+                    for var, target_var in zip(net_vars, target_net_vars):
+                        print("{} <- {}".format(target_var, var))
+                        init_updates.append(tf.assign(target_var, var))
+                    print("================================================================================================================================")
 
-            with tf.variable_scope('critic'):
-                with tf.name_scope('target_network'):
-                    with tf.variable_scope('network', reuse=tf.AUTO_REUSE, custom_getter=getter_ema(self.ema_obj)):
-                        self.Q_output_target = self.create_base_network()
+                    self.init_update = tf.group(*init_updates)
 
+                with tf.name_scope('update'):
+                    print("================================================================================================================================")
+                    updates = []
+                    for var, target_var in zip(net_vars, target_net_vars):
+                        print("{} <- {}".format(target_var, var))
+                        updates.append(tf.assign(target_var, TARGET_DECAY*target_var + (1 - TARGET_DECAY)*var))
+                    print("================================================================================================================================")
+
+                    with tf.control_dependencies([self.optimizer]):
+                        self.update = tf.group(*updates)
 
             # Variables for plotting
             self.action_grads_mean_plot = [0, 0]
             self.td_error_plot = 0
             self.summary_merged = tf.summary.merge([q_value_summary, td_error_summary, regularization_loss_summary, loss_summary] + q_gradients_summary)
+
+    def init(self):
+        self.sess.run([self.init_update])
 
     def custom_initializer_for_conv(self):
         return tf.variance_scaling_initializer(scale=1.0/3.0, mode='fan_in', distribution='uniform', seed=None, dtype=tf.float32)
@@ -185,12 +197,12 @@ class CriticNetwork:
             run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
             run_metadata = tf.RunMetadata()
 
-            summary, td_error_value, _ = self.sess.run([self.summary_merged, self.td_error, self.compute_ema],
+            summary, td_error_value, _ = self.sess.run([self.summary_merged, self.td_error, self.update],
                     feed_dict=feed_dict, options=run_options, run_metadata=run_metadata)
             self.summary_writer.add_run_metadata(run_metadata, 'c step%d' % training_step)
             self.summary_writer.add_summary(summary, training_step)
         else:
-            td_error_value, _ = self.sess.run([self.td_error, self.compute_ema], feed_dict=feed_dict)
+            td_error_value, _ = self.sess.run([self.td_error, self.update], feed_dict=feed_dict)
 
 
         # Increment the td error plot variable for td error average plotting
