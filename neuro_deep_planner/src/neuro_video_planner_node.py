@@ -14,7 +14,7 @@ from std_msgs.msg import Float32
 from neuro_local_planner_wrapper.msg import Transition
 import threading
 import json
-from ddpg import DDPG
+from ddpg.ddpg import DDPG
 from dqn.dqn import DQN
 # For saving replay buffer
 import os

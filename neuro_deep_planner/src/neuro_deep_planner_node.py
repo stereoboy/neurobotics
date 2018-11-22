@@ -2,7 +2,7 @@
 
 import rospy
 from ros_handler import ROSHandler
-from ddpg import DDPG
+from ddpg.ddpg import DDPG
 from dqn.dqn import DQN
 # For saving replay buffer
 import os
