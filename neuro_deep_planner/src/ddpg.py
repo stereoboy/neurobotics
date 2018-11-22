@@ -116,6 +116,8 @@ class DDPG:
                 d, h, w = shape
                 self.map_inputs.append(tf.placeholder("float", [None, d, h, w], name="map_input_{}".format(idx)))
             self.training_step_variable = tf.Variable(0, name='global_step', trainable=False)
+            self.episode_count_variable = tf.Variable(0, name='episode_count', trainable=False)
+            self.episode_count_update = tf.assign(self.episode_count_variable, self.episode_count_variable + 1)
             self.actor_network = ActorNetwork(self.map_inputs, self.action_dim, self.session, self.summary_writer, self.training_step_variable)
             self.critic_network = CriticNetwork(self.map_inputs, self.action_dim, self.session, self.summary_writer)
 
@@ -308,7 +310,7 @@ class DDPG:
 
         if is_episode_finished:
             self.total_rewards.append(self.reward_sum)
-            self.episode_count += 1
+            _, self.episode_count = self.session.run([self.episode_count_update, self.episode_count_variable])
             print("self.episode_count:{}".format(self.episode_count))
             self.reward_sum = 0
             if self.episode_count%10 == 0:
