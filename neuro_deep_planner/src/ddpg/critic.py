@@ -60,18 +60,13 @@ class CriticNetwork:
 
             with tf.variable_scope('critic/network') as scope:
                 self.Q_output = self.create_base_network()
+                self.net_vars        =  tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
 
-                # Get all the variables in the critic network for exponential moving average, create ema op
-                self.critic_variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
-                print(self.critic_variables)
-
-            with tf.variable_scope('critic/target_network'):
+            with tf.variable_scope('critic/target_network') as scope:
                 self.Q_output_target = self.create_base_network()
+                self.target_net_vars =  tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
 
-            net_vars        =  tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='critic/network')
-            target_net_vars =  tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='critic/target_network')
-
-                # L2 Regularization for all Variables
+            # L2 Regularization for all Variables
             with tf.name_scope('critic/regularization'):
                 regularization_loss = tf.losses.get_regularization_loss(scope='critic/network')
 
@@ -101,7 +96,7 @@ class CriticNetwork:
                 with tf.name_scope('init_update'):
                     print("================================================================================================================================")
                     init_updates = []
-                    for var, target_var in zip(net_vars, target_net_vars):
+                    for var, target_var in zip(self.net_vars, self.target_net_vars):
                         print("{} <- {}".format(target_var, var))
                         init_updates.append(tf.assign(target_var, var))
                     print("================================================================================================================================")
@@ -111,7 +106,7 @@ class CriticNetwork:
                 with tf.name_scope('update'):
                     print("================================================================================================================================")
                     updates = []
-                    for var, target_var in zip(net_vars, target_net_vars):
+                    for var, target_var in zip(self.net_vars, self.target_net_vars):
                         print("{} <- {}".format(target_var, var))
                         updates.append(tf.assign(target_var, TARGET_DECAY*target_var + (1 - TARGET_DECAY)*var))
                     print("================================================================================================================================")
