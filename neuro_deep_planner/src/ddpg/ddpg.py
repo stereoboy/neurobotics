@@ -119,13 +119,21 @@ class DDPG:
             self.training_step_variable = tf.Variable(0, name='global_step', trainable=False)
             self.episode_count_variable = tf.Variable(0, name='episode_count', trainable=False)
             self.episode_count_update = tf.assign(self.episode_count_variable, self.episode_count_variable + 1)
-            self.mean_return = tf.placeholder(tf.float32, name="mean_return")
-            mean_return_summary = tf.summary.scalar("mean_return_val", self.mean_return)
-
-            self.summary_merged = tf.summary.merge([mean_return_summary])
             self.frontend_network0 = FrontEndNetwork('frontend0', self.map_inputs, self.session, self.summary_writer, self.training_step_variable)
             self.actor_network = ActorNetwork(self.frontend_network0, self.action_dim, self.session, self.summary_writer, self.training_step_variable)
             self.critic_network = CriticNetwork(self.map_inputs, self.action_dim, self.session, self.summary_writer)
+
+            with tf.variable_scope('mean_return'):
+                self.mean_return = tf.placeholder(tf.float32, name="mean_return")
+                mean_return_summary = tf.summary.scalar("mean_return_val", self.mean_return)
+                mean_return_summary_per_step = tf.summary.scalar("mean_return_val_per_step", self.mean_return)
+            with tf.variable_scope('mean_reward_sum'):
+                self.mean_reward_sum = tf.placeholder(tf.float32, name="mean_reward_sum")
+                mean_reward_sum_summary = tf.summary.scalar("mean_reward_sum_val", self.mean_reward_sum)
+                mean_reward_sum_summary_per_step = tf.summary.scalar("mean_reward_sum_val_per_step", self.mean_reward_sum)
+
+            self.summary_merged0 = tf.summary.merge([mean_return_summary, mean_reward_sum_summary])
+            self.summary_merged1 = tf.summary.merge([mean_return_summary_per_step, mean_reward_sum_summary_per_step])
 
             # Initialize the saver to save the network params
             self.saver = tf.train.Saver()
@@ -172,7 +180,9 @@ class DDPG:
             self.first_experience = True
 
             self.episode_count = 0
-            self.reward_sum = 0
+            self.return_       = 0
+            self.reward_sum    = 0
+            self.total_returns = collections.deque(maxlen=100)
             self.total_rewards = collections.deque(maxlen=100)
 
     def train(self):
@@ -290,7 +300,7 @@ class DDPG:
             self.action = self.clip_action(self.action, self.action_bounds)
 #            print("action C", self.action)
         # Life q value output for this action and state
-        self.print_q_value(state, self.action)
+#        self.print_q_value(state, self.action)
 
         return self.action
 
@@ -302,26 +312,33 @@ class DDPG:
         else:
             self.data_manager.store_experience_to_file(self.old_state, self.old_action, reward, state,
                                                        is_episode_finished)
-            self.reward_sum += reward
-            print("reward_sum: {}".format(self.reward_sum))
+            self.return_    = GAMMA*self.return_ + reward
+            self.reward_sum = self.reward_sum + reward
+            print("(return, reward_sum): ({}, {})".format(self.return_, self.reward_sum))
 
             # Uncomment if collecting data for the auto_encoder
             # experience = (self.old_state, self.old_action, reward, state, is_episode_finished)
             # self.buffer.append(experience)
 
         if is_episode_finished:
+            self.total_returns.append(self.return_)
             self.total_rewards.append(self.reward_sum)
             _, self.episode_count = self.session.run([self.episode_count_update, self.episode_count_variable])
             print("self.episode_count:{}".format(self.episode_count))
+            self.return_    = 0
             self.reward_sum = 0
             if self.episode_count%10 == 0:
                 print("total_rewards:{}".format(self.total_rewards))
                 if len(self.total_rewards) > 0:
-                    mean_return = np.mean(self.total_rewards)
+                    mean_return     = np.mean(self.total_returns)
+                    mean_reward_sum = np.mean(self.total_rewards)
                 else:
-                    mean_return = 0
-                summary  = self.session.run(self.summary_merged, feed_dict={self.mean_return: mean_return,})
-                self.summary_writer.add_summary(summary, self.episode_count)
+                    mean_return     = 0
+                    mean_reward_sum = 0
+                summary0  = self.session.run(self.summary_merged0, feed_dict={self.mean_return: mean_return, self.mean_reward_sum: mean_reward_sum})
+                self.summary_writer.add_summary(summary0, self.episode_count)
+                summary1  = self.session.run(self.summary_merged1, feed_dict={self.mean_return: mean_return, self.mean_reward_sum: mean_reward_sum})
+                self.summary_writer.add_summary(summary1, self.training_step)
 
             self.first_experience = True
             self.exploration_noise.reset()
