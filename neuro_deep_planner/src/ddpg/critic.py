@@ -92,18 +92,18 @@ class CriticNetwork:
                 for i in range(q_gradients_means.shape.as_list()[0]):
                     q_gradients_summary.append(tf.summary.scalar("q_gradient%d"%(i), q_gradients_means[i]))
 
-            with tf.name_scope('critic/target_update'):
-                with tf.name_scope('init_update'):
-                    print("================================================================================================================================")
-                    init_updates = []
-                    for var, target_var in zip(self.net_vars, self.target_net_vars):
-                        print("{} <- {}".format(target_var, var))
-                        init_updates.append(tf.assign(target_var, var))
-                    print("================================================================================================================================")
+            with tf.name_scope('critic/target_update/init_update'):
+                print("================================================================================================================================")
+                init_updates = []
+                for var, target_var in zip(self.net_vars, self.target_net_vars):
+                    print("{} <- {}".format(target_var, var))
+                    init_updates.append(tf.assign(target_var, var))
+                print("================================================================================================================================")
 
-                    self.init_update = tf.group(*init_updates)
+                self.init_update = tf.group(*init_updates)
 
-                with tf.name_scope('update'):
+            with tf.control_dependencies([self.optimizer]):
+                with tf.name_scope('critic/target_update/update'):
                     print("================================================================================================================================")
                     updates = []
                     for var, target_var in zip(self.net_vars, self.target_net_vars):
@@ -111,8 +111,7 @@ class CriticNetwork:
                         updates.append(tf.assign(target_var, TARGET_DECAY*target_var + (1 - TARGET_DECAY)*var))
                     print("================================================================================================================================")
 
-                    with tf.control_dependencies([self.optimizer]):
-                        self.update = tf.group(*updates)
+                    self.update = tf.group(*updates)
 
             # Variables for plotting
             self.action_grads_mean_plot = [0, 0]

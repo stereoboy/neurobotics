@@ -2,6 +2,7 @@ import numpy as np
 import collections
 from ou_noise import OUNoise
 from critic import CriticNetwork
+from frontend import FrontEndNetwork
 from actor import ActorNetwork
 from grad_inverter import GradInverter
 import tensorflow as tf
@@ -118,13 +119,13 @@ class DDPG:
             self.training_step_variable = tf.Variable(0, name='global_step', trainable=False)
             self.episode_count_variable = tf.Variable(0, name='episode_count', trainable=False)
             self.episode_count_update = tf.assign(self.episode_count_variable, self.episode_count_variable + 1)
-            self.actor_network = ActorNetwork(self.map_inputs, self.action_dim, self.session, self.summary_writer, self.training_step_variable)
-            self.critic_network = CriticNetwork(self.map_inputs, self.action_dim, self.session, self.summary_writer)
-
             self.mean_return = tf.placeholder(tf.float32, name="mean_return")
             mean_return_summary = tf.summary.scalar("mean_return_val", self.mean_return)
 
             self.summary_merged = tf.summary.merge([mean_return_summary])
+            self.frontend_network0 = FrontEndNetwork('frontend0', self.map_inputs, self.session, self.summary_writer, self.training_step_variable)
+            self.actor_network = ActorNetwork(self.frontend_network0, self.action_dim, self.session, self.summary_writer, self.training_step_variable)
+            self.critic_network = CriticNetwork(self.map_inputs, self.action_dim, self.session, self.summary_writer)
 
             # Initialize the saver to save the network params
             self.saver = tf.train.Saver()

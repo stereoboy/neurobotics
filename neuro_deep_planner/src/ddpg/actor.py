@@ -6,22 +6,6 @@ from frontend import FrontEndNetwork
 FULLY_LAYER1_SIZE = 200
 FULLY_LAYER2_SIZE = 200
 
-# Params of conv layers
-RECEPTIVE_FIELD1 = 4
-RECEPTIVE_FIELD2 = 4
-RECEPTIVE_FIELD3 = 4
-# RECEPTIVE_FIELD4 = 3
-
-STRIDE1 = 2
-STRIDE2 = 2
-STRIDE3 = 2
-# STRIDE4 = 1
-
-FILTER1 = 32
-FILTER2 = 32
-FILTER3 = 32
-# FILTER4 = 64
-
 # How fast is learning
 LEARNING_RATE = 5e-4
 
@@ -57,17 +41,18 @@ class ActorNetwork:
 
             with tf.variable_scope('actor/network') as scope:
                 self.action_output = self.create_base_network(self.frontend.output)
-                self.net_vars        =  tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
+                self.net_vars      =  tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
 
             with tf.variable_scope('actor/target_network') as scope:
                 self.action_output_target = self.create_base_network(self.frontend.output_target)
-                self.target_net_vars =  tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
+                self.target_net_vars      =  tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope.name)
 
             self.actor_variables = self.net_vars + self.frontend.net_vars
 
             with tf.name_scope('actor/regularization'):
-                regularization_loss = tf.losses.get_regularization_loss(scope='actor/network')
-                regularization_loss_summary = tf.summary.scalar('regularization_loss', regularization_loss)
+                self.regularization_loss = tf.losses.get_regularization_loss(scope='actor/network')
+                self.regularization_loss += self.frontend.regularization_loss
+                regularization_loss_summary = tf.summary.scalar('regularization_loss', self.regularization_loss)
 
             # Define the gradient operation that delivers the gradients with the action gradient from the critic
             with tf.name_scope('actor/a_gradients'):
@@ -78,8 +63,8 @@ class ActorNetwork:
                 self.optimizer = tf.train.AdamOptimizer(LEARNING_RATE).apply_gradients(zip(self.parameters_gradients,
                                                                                        self.actor_variables), global_step=training_step_variable)
 
-            with tf.name_scope('actor/target_update'):
-                with tf.name_scope('init_update'):
+            with tf.name_scope('actor/target_update/init_update'):
+                with tf.control_dependencies([self.frontend.init_update]):
                     print("================================================================================================================================")
                     init_updates = []
                     for var, target_var in zip(self.net_vars, self.target_net_vars):
@@ -87,18 +72,19 @@ class ActorNetwork:
                         init_updates.append(tf.assign(target_var, var))
                     print("================================================================================================================================")
 
-                    with tf.control_dependencies([self.frontend.init_update]):
-                        self.init_update = tf.group(*init_updates)
+                    self.init_update = tf.group(*init_updates)
 
-                with tf.name_scope('update'):
-                    print("================================================================================================================================")
-                    updates = []
-                    for var, target_var in zip(self.net_vars, self.target_net_vars):
-                        print("{} <- {}".format(target_var, var))
-                        updates.append(tf.assign(target_var, TARGET_DECAY*target_var + (1 - TARGET_DECAY)*var))
-                    print("================================================================================================================================")
-
-                    with tf.control_dependencies([self.frontend.update, self.optimizer]):
+            with tf.control_dependencies([self.optimizer]):
+                frontend_update = self.frontend.set_update()
+                with tf.control_dependencies([frontend_update]):
+                    with tf.name_scope('actor/target_update/update'):
+                        print("================================================================================================================================")
+                        updates = []
+                        for var, target_var in zip(self.net_vars, self.target_net_vars):
+                            print("{} <- {}".format(target_var, var))
+                            update = tf.assign(target_var, TARGET_DECAY*target_var + (1 - TARGET_DECAY)*var)
+                            updates.append(update)
+                        print("================================================================================================================================")
                         self.update = tf.group(*updates)
 
             # Variables for plotting
@@ -161,7 +147,7 @@ class ActorNetwork:
             self.summary_writer.add_run_metadata(run_metadata, 'a step%d' % training_step)
             self.summary_writer.add_summary(summary, training_step)
         else:
-            self.sess.run(self.update, feed_dict=feed_dict)
+            self.sess.run([self.update], feed_dict=feed_dict)
 
     def get_action(self, state):
         feed_dict = {}
