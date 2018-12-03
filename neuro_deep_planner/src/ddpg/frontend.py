@@ -22,10 +22,11 @@ TARGET_DECAY = 0.9999
 
 class FrontEndNetwork:
 
-    def __init__(self, name, map_inputs, session, summary_writer, training_step_variable):
+    def __init__(self, name, map_inputs, layers, session, summary_writer, training_step_variable):
 
         self.graph = session.graph
         self.name = name
+        self.layers = layers
 
         with self.graph.as_default():
 
@@ -85,30 +86,13 @@ class FrontEndNetwork:
 
         outs = []
         for single_input in input_list:
-            # conv layer1
-            out = tf.layers.conv2d(inputs=single_input, filters=FILTER1, kernel_size=RECEPTIVE_FIELD1, strides=STRIDE1, padding='VALID',
-                    data_format='channels_first',
-                    kernel_initializer=self.custom_initializer_for_conv(),
-                    kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
-                    activation=tf.nn.relu)
-            # conv layer2
-            out = tf.layers.conv2d(inputs=out, filters=FILTER2, kernel_size=RECEPTIVE_FIELD2, strides=STRIDE2, padding='VALID',
-                    data_format='channels_first',
-                    kernel_initializer=self.custom_initializer_for_conv(),
-                    kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
-                    activation=tf.nn.relu)
-            # conv layer3
-            out = tf.layers.conv2d(inputs=out, filters=FILTER3, kernel_size=RECEPTIVE_FIELD3, strides=STRIDE3, padding='VALID',
-                    data_format='channels_first',
-                    kernel_initializer=self.custom_initializer_for_conv(),
-                    kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
-                    activation=tf.nn.relu)
-            # conv layer4
-#            out = tf.layers.conv2d(inputs=out, filters=FILTER4, kernel_size=RECEPTIVE_FIELD4, strides=STRIDE4, padding='VALID',
-#                    data_format='channels_first',
-#                    kernel_initializer=self.custom_initializer_for_conv(),
-#                    kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
-#                    activation=tf.nn.relu)
+            out = single_input
+            for kernel_size, strides, filter_size in self.layers:
+                out = tf.layers.conv2d(inputs=out, filters=filter_size, kernel_size=kernel_size, strides=strides, padding='VALID',
+                        data_format='channels_first',
+                        kernel_initializer=self.custom_initializer_for_conv(),
+                        kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                        activation=tf.nn.relu)
             out = tf.layers.flatten(out)
             outs.append(out)
 

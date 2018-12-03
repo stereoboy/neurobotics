@@ -121,9 +121,12 @@ class DDPG:
             self.training_step_variable = tf.Variable(0, name='global_step', trainable=False)
             self.episode_count_variable = tf.Variable(0, name='episode_count', trainable=False)
             self.episode_count_update = tf.assign(self.episode_count_variable, self.episode_count_variable + 1)
-            self.frontend_network0 = FrontEndNetwork('frontend0', self.map_inputs, self.session, self.summary_writer, self.training_step_variable)
+            conv_layers = [(4, 2, 32), (4, 2, 32), (4, 2, 32)]
+            self.frontend_network0 = FrontEndNetwork('frontend0', self.map_inputs, conv_layers, self.session, self.summary_writer, self.training_step_variable)
             self.actor_network = ActorNetwork(self.frontend_network0, self.action_dim, self.session, self.summary_writer, self.training_step_variable)
-            self.critic_network = CriticNetwork(self.map_inputs, self.action_dim, self.session, self.summary_writer)
+            conv_layers = [(8, 4, 32), (4, 2, 64), (4, 3, 64)]
+            self.frontend_network1 = FrontEndNetwork('frontend1', self.map_inputs, conv_layers, self.session, self.summary_writer, self.training_step_variable)
+            self.critic_network = CriticNetwork(self.frontend_network1, self.action_dim, self.session, self.summary_writer)
 
             with tf.variable_scope('mean_return'):
                 self.mean_return = tf.placeholder(tf.float32, name="mean_return")
