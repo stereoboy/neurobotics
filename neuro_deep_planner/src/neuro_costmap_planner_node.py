@@ -61,6 +61,7 @@ class PlannerNode(object):
         print("###################################################################")
         print("mode: {}".format(FLAGS.mode))
         print("robot_type: {}".format(self.robot_type))
+        print("logdir: {}".format(FLAGS.dir))
         print("###################################################################")
 
         self.agent = DDPG(FLAGS.mode, [(4, 86, 86)], action_bounds_dict[self.robot_type], FLAGS.dir)
@@ -106,6 +107,14 @@ class PlannerNode(object):
                 # Train the network!
                 if FLAGS.mode == 'train':
                     self.agent.train()
+
+                if not self.agent.is_running():
+                    rospy.logwarn("####################################################################")
+                    rospy.logwarn("####################################################################")
+                    rospy.logwarn("######################## E N D #####################################")
+                    rospy.logwarn("####################################################################")
+                    rospy.logwarn("####################################################################")
+                    break
 
                 #ch = cv2.waitKey(1)
                 #rate.sleep()

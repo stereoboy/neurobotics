@@ -46,9 +46,11 @@ VISUALIZE_BUFFER = False
 # How often are we saving the net
 SAVE_STEP = 10000
 
+# Max training step
+MAX_TRAINING_STEP = 2e5
+
 # Max training step with noise
 MAX_NOISE_STEP = 3000000
-
 
 class DDPG:
 
@@ -261,6 +263,12 @@ class DDPG:
         for i, x in enumerate(action):
             clipped_action[i] = np.clip(x, action_bounds[i][0], action_bounds[i][1])
         return clipped_action
+
+    def is_running(self):
+        if self.training_step > MAX_TRAINING_STEP:
+            return False
+        return True
+
 
     def get_action(self, state):
 
