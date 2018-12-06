@@ -15,6 +15,9 @@ REGULARIZATION_DECAY = 0.0
 # How fast does the target net track
 TARGET_DECAY = 0.9999
 
+# Weight decay for regularization
+BASE_WEIGHT_DECAY = 1e-4
+
 # In what range are we initializing the weights in the final layer
 FINAL_WEIGHT_INIT = 0.003
 
@@ -58,7 +61,8 @@ class CriticNetwork:
             # Define the loss with regularization term
             with tf.name_scope('critic/cal_loss'):
                 self.td_error = tf.reduce_mean(tf.pow(self.Q_output - self.y_input, 2))
-                self.loss = self.td_error #+ regularization_loss
+                #self.loss = self.td_error + self.regularization_loss
+                self.loss = self.td_error
                 q_value_summary             = tf.summary.scalar('q_value', tf.reduce_mean(self.Q_output))
                 td_error_summary            = tf.summary.scalar('td_error', self.td_error)
                 regularization_loss_summary = tf.summary.scalar('regularization_loss', self.regularization_loss)
@@ -88,16 +92,6 @@ class CriticNetwork:
 
                     self.init_update = tf.group(*init_updates)
 
-#                with tf.name_scope('update'):
-#                    print("================================================================================================================================")
-#                    updates = []
-#                    for var, target_var in zip(self.net_vars, self.target_net_vars):
-#                        print("{} <- {}".format(target_var, var))
-#                        updates.append(tf.assign(target_var, TARGET_DECAY*target_var + (1 - TARGET_DECAY)*var))
-#                    print("================================================================================================================================")
-#
-#                    with tf.control_dependencies([self.frontend.update, self.optimizer]):
-#                        self.update = tf.group(*updates)
             with tf.control_dependencies([self.optimizer]):
                 frontend_update = self.frontend.set_update()
                 with tf.control_dependencies([frontend_update]):
@@ -130,27 +124,25 @@ class CriticNetwork:
         return tf.random_uniform_initializer(-FINAL_WEIGHT_INIT, FINAL_WEIGHT_INIT)
 
     def create_base_network(self, inputs):
-        # new setup
-        weight_decay = 1e-2
 
         # dense layer1
         out = inputs
         out = tf.concat([out, self.action_input], axis=1)
         out = tf.layers.dense(inputs=out, units=FULLY_LAYER1_SIZE,
                 kernel_initializer=self.custom_initializer_for_dense(),
-                kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                kernel_regularizer=tf.contrib.layers.l2_regularizer(BASE_WEIGHT_DECAY),
                 bias_initializer=tf.zeros_initializer(),
                 activation=tf.nn.relu)
         # dense layer2
         out = tf.layers.dense(inputs=out, units=FULLY_LAYER2_SIZE,
                 kernel_initializer=self.custom_initializer_for_dense(),
-                kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                kernel_regularizer=tf.contrib.layers.l2_regularizer(BASE_WEIGHT_DECAY),
                 bias_initializer=tf.zeros_initializer(),
                 activation=tf.nn.relu)
         # dense layer3
         out = tf.layers.dense(inputs=out, units=1,
                 kernel_initializer=self.custom_initializer_for_final_dense(),
-                kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                kernel_regularizer=tf.contrib.layers.l2_regularizer(BASE_WEIGHT_DECAY),
                 bias_initializer=self.custom_initializer_for_final_dense(),
                 activation=None)
 

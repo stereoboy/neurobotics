@@ -12,6 +12,9 @@ LEARNING_RATE = 5e-4
 # How fast does the target net track
 TARGET_DECAY = 0.9999
 
+# Weight decay for regularization
+BASE_WEIGHT_DECAY = 1e-4
+
 # In what range are we initializing the weights in the final layer
 FINAL_WEIGHT_INIT = 0.003
 
@@ -56,7 +59,10 @@ class ActorNetwork:
 
             # Define the gradient operation that delivers the gradients with the action gradient from the critic
             with tf.name_scope('actor/a_gradients'):
-                self.parameters_gradients = tf.gradients(self.action_output, self.actor_variables, -self.q_gradient_input) #+ tf.gradients(regularization_loss, self.actor_variables, name="regularization")
+                #self.parameters_gradients = tf.gradients(self.action_output, self.actor_variables, -self.q_gradient_input) #+ tf.gradients(regularization_loss, self.actor_variables, name="regularization")
+                #obj = tf.multiply(self.action_output, -self.q_gradient_input) + 1e-2*self.regularization_loss
+                obj = tf.multiply(self.action_output, -self.q_gradient_input)
+                self.parameters_gradients = tf.gradients(obj, self.actor_variables, name="cal_gradients")
                 actor_gradient_summary = tf.summary.scalar('actor_gradients', tf.reduce_mean(self.parameters_gradients[0]))
             # Define the optimizer
             with tf.name_scope('actor/a_param_opt'):
@@ -83,6 +89,7 @@ class ActorNetwork:
                         for var, target_var in zip(self.net_vars, self.target_net_vars):
                             print("{} <- {}".format(target_var, var))
                             update = tf.assign(target_var, TARGET_DECAY*target_var + (1 - TARGET_DECAY)*var)
+                            #update = tf.Print(update, [], message="<actor_update>")
                             updates.append(update)
                         print("================================================================================================================================")
                         self.update = tf.group(*updates)
@@ -106,26 +113,24 @@ class ActorNetwork:
         return tf.random_uniform_initializer(-3.0e-4, 3.0e-4)
 
     def create_base_network(self, inputs):
-        # new setup
-        weight_decay = 1e-2
 
         # dense layer1
         out = inputs
         out = tf.layers.dense(inputs=out, units=FULLY_LAYER1_SIZE,
                 kernel_initializer=self.custom_initializer_for_dense(),
-                kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                kernel_regularizer=tf.contrib.layers.l2_regularizer(BASE_WEIGHT_DECAY),
                 bias_initializer=tf.zeros_initializer(),
                 activation=tf.nn.relu)
         # dense layer2
         out = tf.layers.dense(inputs=out, units=FULLY_LAYER2_SIZE,
                 kernel_initializer=self.custom_initializer_for_dense(),
-                kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                kernel_regularizer=tf.contrib.layers.l2_regularizer(BASE_WEIGHT_DECAY),
                 bias_initializer=tf.zeros_initializer(),
                 activation=tf.nn.relu)
         # dense layer3
         out = tf.layers.dense(inputs=out, units=self.action_size,
                 kernel_initializer=self.custom_initializer_for_final_dense(),
-                kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                kernel_regularizer=tf.contrib.layers.l2_regularizer(BASE_WEIGHT_DECAY),
                 bias_initializer=self.custom_initializer_for_final_dense(),
                 activation=None)
 

@@ -20,6 +20,9 @@ FILTER3 = 32
 # How fast does the target net track
 TARGET_DECAY = 0.9999
 
+# Weight decay for regularization
+BASE_WEIGHT_DECAY = 1e-4
+
 class FrontEndNetwork:
 
     def __init__(self, name, map_inputs, layers, session, summary_writer, training_step_variable):
@@ -81,9 +84,6 @@ class FrontEndNetwork:
         return tf.variance_scaling_initializer(scale=1.0/3.0, mode='fan_in', distribution='uniform', seed=None, dtype=tf.float32)
 
     def create_base_network(self, input_list):
-        # new setup
-        weight_decay = 1e-2
-
         outs = []
         for single_input in input_list:
             out = single_input
@@ -91,7 +91,7 @@ class FrontEndNetwork:
                 out = tf.layers.conv2d(inputs=out, filters=filter_size, kernel_size=kernel_size, strides=strides, padding='VALID',
                         data_format='channels_first',
                         kernel_initializer=self.custom_initializer_for_conv(),
-                        kernel_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+                        kernel_regularizer=tf.contrib.layers.l2_regularizer(BASE_WEIGHT_DECAY),
                         activation=tf.nn.relu)
             out = tf.layers.flatten(out)
             outs.append(out)
