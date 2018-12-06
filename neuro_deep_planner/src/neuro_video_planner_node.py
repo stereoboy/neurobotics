@@ -135,6 +135,14 @@ class PlannerNode(object):
                 if FLAGS.mode == 'train':
                     self.agent.train()
 
+                if not self.agent.is_running():
+                    rospy.logwarn("####################################################################")
+                    rospy.logwarn("####################################################################")
+                    rospy.logwarn("######################## E N D #####################################")
+                    rospy.logwarn("####################################################################")
+                    rospy.logwarn("####################################################################")
+                    break
+
                 if FLAGS.gui:
                     ch = cv2.waitKey(1)
                     rate.sleep()
@@ -149,17 +157,18 @@ class PlannerNode(object):
         self.front_end.status_callback(msg)
         self.state, self.reward, self.done = self.front_end.step()
 
+        if self.skip_count:
+            self.skip_count -= 1
+            return
+
         if self.done:
             self.front_end.reset()
             self.skip_count = 5
             rospy.logdebug("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
             rospy.logdebug("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
             rospy.logdebug("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
-        if self.skip_count:
-            self.skip_count -= 1
-            return
         # Safe the past state and action + the reward and new state into the replay buffer
-        if self.agent is not None and FLAGS.mode == 'train':
+        if self.state is not None and self.agent is not None and FLAGS.mode == 'train':
             self.agent.set_experience([self.state], self.reward, self.done)
 
 
