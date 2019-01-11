@@ -37,14 +37,16 @@ class VideoROSFrontEnd(FrontEnd):
         self.__pub = rospy.Publisher("neuro_deep_planner/action", Twist, queue_size=10)
         self.__pub2 = rospy.Publisher("/ue4/robot/ctrl/move", Twist, queue_size=10)
 
-        self.shapes = [(FRAME_SIZE*3, 240/2, 320/2)]
+        #self.shapes = [(FRAME_SIZE*3, 240/2, 320/2)]
+        self.shapes = [(FRAME_SIZE*3, 84, 84)]
         h, w = self.shapes[0][1:]
 
         self.target_marker_img = cv2.imread(os.path.join(target_img_dir, 'target_marker_img.png'))
         self.target_marker_img = cv2.resize(self.target_marker_img, (w, h), interpolation=cv2.INTER_NEAREST)
         self.target_img_infos = [   
                                     {"filename":'target_img.png', 'coeffs':[10.0, 0.0, 0.0], 'png':None},
-#                                    {"filename":'target_img_bg.png', 'coeffs':[0.1, 0.0, -0.1], 'png':None},
+                                    #{"filename":'target_img_bg.png', 'coeffs':[0.1, 0.0, -0.1], 'png':None},
+                                    {"filename":'target_img_bg.png', 'coeffs':[-0.1, 0.0, 0.0], 'png':None},
                                 ]
         print("load target images.... @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 #        for filepath in glob.glob(os.path.join(target_img_dir, "target_img.png")):
@@ -118,12 +120,15 @@ class VideoROSFrontEnd(FrontEnd):
     def video_callback(self, img_msg):
         print("[%d]>>>video_callback(%d)"%(threading.current_thread().ident, img_msg.header.seq))
         with self.thread_lock:
-            self.cv_image = self.bridge.imgmsg_to_cv2(img_msg, desired_encoding="bgr8")
-            print(self.cv_image.shape)
+            cv_image = self.bridge.imgmsg_to_cv2(img_msg, desired_encoding="bgr8")
+            print(cv_image.shape)
             h, w = self.shapes[0][1:]
             print(h, w)
-            self.cv_image = cv2.resize(self.cv_image, (w, h), interpolation=cv2.INTER_NEAREST)
-            self.cv_image = cv2.add(self.cv_image, self.target_marker_img)
+            cv_image = cv2.resize(cv_image, (w, h), interpolation=cv2.INTER_NEAREST)
+            _, mask_bg = cv2.threshold(cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY), 1, 255, cv2.THRESH_BINARY_INV)
+            img_bg = cv2.bitwise_and(self.target_marker_img, self.target_marker_img, mask=mask_bg)
+            #cv_image = cv2.addWeighted(cv_image, 0.7, self.target_marker_img, 0.3, 0.0)
+            self.cv_image = cv_image + img_bg
             self.buffer.append(self.cv_image)
 
             # FRAME END #
