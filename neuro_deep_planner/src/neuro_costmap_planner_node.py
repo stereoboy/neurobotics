@@ -3,7 +3,6 @@
 import rospy
 import numpy as np
 import cv2
-import tensorflow as tf
 import sys
 import collections
 from cv_bridge import CvBridge, CvBridgeError
@@ -19,6 +18,7 @@ from dqn.dqn import DQN
 import os
 import datetime
 import math
+import argparse
 
 from front_end import CostmapROSFrontEnd
 from data_manager.replay_buffer import DQNReplayBuffer
@@ -31,10 +31,6 @@ BATCH_SIZE = 32
 
 # Data Directory
 DATA_PATH = os.path.expanduser('~') + '/rl_nav_data'
-
-FLAGS = tf.flags.FLAGS
-tf.flags.DEFINE_string("mode", "train", "mode: train or eval")
-tf.flags.DEFINE_string("dir", "./rl_nav_data", "directory to save")
 
 action_bounds_dict = {
     'holonomic': [[-0.4, 0.4], [-0.4, 0.4]],
@@ -62,6 +58,7 @@ class PlannerNode(object):
         return [ self.vis_im ]
 
     def init_tf_agent(self):
+        import tensorflow as tf
 
         actor_conv_layers = [(4, 2, 32), (4, 2, 32), (4, 2, 32)]
         #actor_conv_layers = [(4, 2, 64), (4, 2, 64), (4, 2, 64)]
@@ -83,15 +80,23 @@ class PlannerNode(object):
 #        self.session = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
         session = tf.InteractiveSession()
 
-        data_manager = DQNReplayBuffer(os.path.join(FLAGS.dir, 'experiences'), max_memory_size=1e6, start_size=2e3) if FLAGS.mode == 'train' else None
-        agent = DDPG(session, [(4, 86, 86)], layers, BATCH_SIZE, action_bounds_dict[self.robot_type], FLAGS.dir, data_manager=data_manager, max_training_step=1e6)
+        data_manager = DQNReplayBuffer(os.path.join(self.options.dir, 'experiences'), max_memory_size=1e6, start_size=2e3) if self.options.mode == 'train' else None
+        agent = DDPG(session, [(4, 86, 86)], layers, BATCH_SIZE, action_bounds_dict[self.robot_type], self.options.dir, data_manager=data_manager, max_training_step=1e6)
         return agent
 
     def run(self):
+
+        parser = argparse.ArgumentParser(description='self controller based on costmap')
+        parser.add_argument('--gui', action="store_true", default=True)
+        parser.add_argument('--mode', action="store", dest='mode', default='train')
+        parser.add_argument('--dir', action="store", dest='dir', default='./rl_nav_data')
+
+        self.options=parser.parse_args(sys.argv[1:])
+
         print("###################################################################")
-        print("mode: {}".format(FLAGS.mode))
+        print("mode: {}".format(self.options.mode))
         print("robot_type: {}".format(self.robot_type))
-        print("logdir: {}".format(FLAGS.dir))
+        print("logdir: {}".format(self.options.dir))
         print("###################################################################")
 
         self.agent = self.init_tf_agent()
@@ -100,7 +105,7 @@ class PlannerNode(object):
         with open(os.path.join(self.agent.data_path, 'configuration.txt'), 'w') as f:
             json.dump(data, f, ensure_ascii=False)
 
-        self.agent.noise_flag = True if FLAGS.mode == 'train' else False
+        self.agent.noise_flag = True if self.options.mode == 'train' else False
 
         real_start_time = datetime.datetime.now() # real time
         last_msg_time = datetime.datetime.now()
@@ -111,7 +116,7 @@ class PlannerNode(object):
             while not rospy.is_shutdown():
                 # check time
                 real_current_time = datetime.datetime.now()
-                if FLAGS.mode == 'train' and (real_current_time - last_msg_time).seconds >= TIMEOUT:
+                if self.options.mode == 'train' and (real_current_time - last_msg_time).seconds >= TIMEOUT:
                     rospy.logerr("It's been over 60 seconds since the last data came in.")
                     sys.exit()
                 elapsed_time = (real_current_time - real_start_time)
@@ -131,11 +136,11 @@ class PlannerNode(object):
                             self.front_end.publish_action(self.agent.get_action([state]))
 
                     # Safe the past state and action + the reward and new state into the replay buffer
-                    if FLAGS.mode == 'train':
+                    if self.options.mode == 'train':
                         self.agent.set_experience([state], reward, done)
                     self.front_end.new_msg = False
                 # Train the network!
-                if FLAGS.mode == 'train':
+                if self.options.mode == 'train':
                     self.agent.train()
 
                 if not self.agent.is_running():
