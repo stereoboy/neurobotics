@@ -210,7 +210,7 @@ class VideoROSFrontEnd(FrontEnd):
             rospy.logerr("Wrong robot_type parameter")
             sys.exit(-1)
 
-        vel_cmd = Twist(Vector3(action[0]*10.0, 0, 0), Vector3(0, 0, action[1]))
+        vel_cmd = Twist(Vector3(action[0], 0, 0), Vector3(0, 0, action[1]))
         # Send the action back
         #self.__pub.publish(vel_cmd)
         self.__pub2.publish(vel_cmd)
