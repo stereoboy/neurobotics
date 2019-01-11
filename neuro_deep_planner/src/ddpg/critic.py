@@ -1,6 +1,6 @@
 import tensorflow as tf
-import math
 import numpy as np
+from frontend import FrontEndNetwork
 
 # Params of fully connected layers
 FULLY_LAYER1_SIZE = 512

@@ -52,6 +52,9 @@ MAX_TRAINING_STEP = 2e5
 # Max training step with noise
 MAX_NOISE_STEP = 3000000
 
+MAX_MEMORY_SIZE = 1e6
+START_SIZE = 2000
+
 class DDPG:
 
     def __init__(self, mode, state_shapes, action_bounds, data_path):
@@ -122,9 +125,15 @@ class DDPG:
             self.episode_count_variable = tf.Variable(0, name='episode_count', trainable=False)
             self.episode_count_update = tf.assign(self.episode_count_variable, self.episode_count_variable + 1)
             conv_layers = [(4, 2, 32), (4, 2, 32), (4, 2, 32)]
+            #conv_layers = [(4, 2, 64), (4, 2, 64), (4, 2, 64)]
+            #conv_layers = [(8, 4, 32), (4, 2, 64), (3, 1, 64)]
+            #conv_layers = [(8, 4, 32), (4, 2, 64), (4, 2, 64)]
+            #conv_layers = [(8, 4, 32), (4, 2, 64), (3, 1, 64)]
             self.frontend_network0 = FrontEndNetwork('frontend0', self.map_inputs, conv_layers, self.session, self.summary_writer, self.training_step_variable)
             self.actor_network = ActorNetwork(self.frontend_network0, self.action_dim, self.session, self.summary_writer, self.training_step_variable)
             conv_layers = [(8, 4, 32), (4, 2, 64), (4, 3, 64)]
+            #conv_layers = [(8, 4, 64), (4, 2, 128), (4, 3, 128)]
+            #conv_layers = [(8, 4, 32), (4, 2, 64), (3, 1, 64)]
             self.frontend_network1 = FrontEndNetwork('frontend1', self.map_inputs, conv_layers, self.session, self.summary_writer, self.training_step_variable)
             self.critic_network = CriticNetwork(self.frontend_network1, self.action_dim, self.session, self.summary_writer)
 
@@ -146,7 +155,7 @@ class DDPG:
             # initialize the experience data manger
             if self.mode == 'train':
                 #self.data_manager = DQNDataManager(BATCH_SIZE, self.experience_path, self.session)
-                self.data_manager = DQNReplayBuffer(BATCH_SIZE, self.experience_path, self.session, max_memory_size=1000000, start_size=2000)
+                self.data_manager = DQNReplayBuffer(BATCH_SIZE, self.experience_path, self.session, max_memory_size=MAX_MEMORY_SIZE, start_size=START_SIZE)
 
             # After the graph has been filled add it to the summary writer
             self.summary_writer.add_graph(self.graph)
@@ -287,7 +296,7 @@ class DDPG:
 
         print("self.noise_flag", self.noise_flag)
         print("self.training_step", self.training_step)
-        print("action A", self.action)
+        print("action A *******************************************************************************", self.action)
 
         # Are we using noise?
         if self.noise_flag:
@@ -301,8 +310,9 @@ class DDPG:
                 #self.action += np.exp(-1e-5*self.training_step) * self.exploration_noise.noise()
                 noise = noise_factor * self.exploration_noise.noise()
                 print("noise", noise)
+                #self.action += noise
                 self.action += noise
-                print("action B", self.action)
+                print("action B *******************************************************************************", self.action)
             # if action value lies outside of action bounds, rescale the action vector
 #            if self.action[0] < A0_BOUNDS[0] or self.action[0] > A0_BOUNDS[1]:
 #                self.action[0] *= np.fabs(A0_BOUNDS[0]/self.action[0])
@@ -332,6 +342,11 @@ class DDPG:
             # self.buffer.append(experience)
 
         if is_episode_finished:
+            print("*********************************************************************************************************************")
+            print("*********************************************************************************************************************")
+            print(is_episode_finished)
+            print("*********************************************************************************************************************")
+            print("*********************************************************************************************************************")
             self.total_returns.append(self.return_)
             self.total_rewards.append(self.reward_sum)
             _, self.episode_count = self.session.run([self.episode_count_update, self.episode_count_variable])
