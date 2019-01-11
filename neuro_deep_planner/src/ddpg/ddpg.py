@@ -7,7 +7,6 @@ from actor import ActorNetwork
 from grad_inverter import GradInverter
 import tensorflow as tf
 #from data_manager import DataManager
-from data_manager.replay_buffer import DQNReplayBuffer
 
 # For saving replay buffer
 import os
@@ -17,9 +16,6 @@ import datetime
 # Visualization
 from state_visualizer import CostmapVisualizer
 
-
-# How big are our mini batches
-BATCH_SIZE = 32
 
 # How big is our discount factor for rewards
 GAMMA = 0.99
@@ -47,21 +43,18 @@ VISUALIZE_BUFFER = False
 SAVE_STEP = 10000
 
 # Max training step
-MAX_TRAINING_STEP = 2e5
+MAX_TRAINING_STEP = 3e6
 
 # Max training step with noise
 MAX_NOISE_STEP = 3000000
 
-MAX_MEMORY_SIZE = 1e6
-START_SIZE = 2000
-
 class DDPG:
 
-    def __init__(self, mode, state_shapes, action_bounds, data_path):
-
-        self.mode = mode
+    def __init__(self, state_shapes, batch_size, action_bounds, data_path, data_manager=None):
 
         self.data_path = data_path
+
+        self.batch_size = batch_size
 
         # path to tensorboard data
         self.tflog_path = data_path + '/tf_logs'
@@ -153,9 +146,7 @@ class DDPG:
             self.saver = tf.train.Saver()
 
             # initialize the experience data manger
-            if self.mode == 'train':
-                #self.data_manager = DQNDataManager(BATCH_SIZE, self.experience_path, self.session)
-                self.data_manager = DQNReplayBuffer(BATCH_SIZE, self.experience_path, self.session, max_memory_size=MAX_MEMORY_SIZE, start_size=START_SIZE)
+            self.data_manager = data_manager
 
             # After the graph has been filled add it to the summary writer
             self.summary_writer.add_graph(self.graph)
@@ -201,7 +192,7 @@ class DDPG:
 
     def train(self):
         # Check if the buffer is big enough to start training
-        if self.data_manager.enough_data():
+        if self.data_manager and self.data_manager.enough_data():
             print("train()")
             self.data_manager.check_for_enqueue()
 
@@ -210,7 +201,7 @@ class DDPG:
                 action_batch, \
                 reward_batch, \
                 next_state_batch_list, \
-                is_episode_finished_batch = self.data_manager.get_next_batch()
+                is_episode_finished_batch = self.data_manager.get_next_batch(self.batch_size)
 
             state_batch_list = [np.divide(state_batch, 100.0) for state_batch in state_batch_list]
             next_state_batch_list = [np.divide(next_state_batch, 100.0) for next_state_batch in next_state_batch_list]
@@ -220,7 +211,7 @@ class DDPG:
             next_action_batch = self.actor_network.target_evaluate(next_state_batch_list)
             q_value_batch = self.critic_network.target_evaluate(next_state_batch_list, next_action_batch)
 
-            for i in range(0, BATCH_SIZE):
+            for i in range(0, self.batch_size):
                 if is_episode_finished_batch[i]:
                     y_batch.append([reward_batch[i]])
                 else:
@@ -327,6 +318,9 @@ class DDPG:
 
     def set_experience(self, state, reward, is_episode_finished):
 
+        if self.data_manager is None:
+            raise ValueError("No data_manager is set.")
+
         # Make sure we're saving a new old_state for the first experience of every episode
         if self.first_experience:
             self.first_experience = False
@@ -343,9 +337,7 @@ class DDPG:
 
         if is_episode_finished:
             print("*********************************************************************************************************************")
-            print("*********************************************************************************************************************")
-            print(is_episode_finished)
-            print("*********************************************************************************************************************")
+            print("a episode ends.({})".format(is_episode_finished))
             print("*********************************************************************************************************************")
             self.total_returns.append(self.return_)
             self.total_rewards.append(self.reward_sum)

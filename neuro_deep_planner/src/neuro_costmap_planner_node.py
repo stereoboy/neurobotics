@@ -21,9 +21,13 @@ import datetime
 import math
 
 from front_end import CostmapROSFrontEnd
+from data_manager.replay_buffer import DQNReplayBuffer
 
 TIMEOUT = 100
 PRINT_INTERVAL = 10
+
+# How big are our mini batches
+BATCH_SIZE = 32
 
 # Data Directory
 DATA_PATH = os.path.expanduser('~') + '/rl_nav_data'
@@ -64,7 +68,8 @@ class PlannerNode(object):
         print("logdir: {}".format(FLAGS.dir))
         print("###################################################################")
 
-        self.agent = DDPG(FLAGS.mode, [(4, 86, 86)], action_bounds_dict[self.robot_type], FLAGS.dir)
+        data_manager = DQNReplayBuffer(os.path.join(FLAGS.dir, 'experiences'), max_memory_size=1e6, start_size=2e3) if FLAGS.mode == 'train' else None
+        self.agent = DDPG([(4, 86, 86)], BATCH_SIZE, action_bounds_dict[self.robot_type], FLAGS.dir, data_manager=data_manager)
 
         data = {'controller_frequency': self.controller_frequency, 'transition_frame_interval': self.transition_frame_interval}
         with open(os.path.join(self.agent.data_path, 'configuration.txt'), 'w') as f:

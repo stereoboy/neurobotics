@@ -16,9 +16,8 @@ START_SIZE       = 2000
 Experience = collections.namedtuple('Experience', field_names=['state', 'action', 'reward', 'next_state', 'is_episode_finished'])
 class DQNReplayBuffer(object):
 
-    def __init__(self, batch_size, p_experience_path, session, max_memory_size=MAX_MEMORY_SIZE, start_size=START_SIZE):
+    def __init__(self, experience_path, max_memory_size=MAX_MEMORY_SIZE, start_size=START_SIZE):
 
-        self.batch_size         = batch_size
         self.max_memory_size    = max_memory_size
         self.start_size         = start_size
         self.buffer = collections.deque(maxlen=max_memory_size)
@@ -30,8 +29,8 @@ class DQNReplayBuffer(object):
             return False
 
     # builds the pipeline how random batches are generated from the experience files on the hard drive
-    def get_next_batch(self):
-        sampled_indices = np.random.choice(len(self.buffer), self.batch_size, replace=False)
+    def get_next_batch(self, batch_size):
+        sampled_indices = np.random.choice(len(self.buffer), batch_size, replace=False)
         states, actions, rewards, next_states, dones = zip(*[self.buffer[idx] for idx in sampled_indices])
 
         state_batch_list          = [np.array(s,            dtype=np.int8) for s in zip(*states)]
