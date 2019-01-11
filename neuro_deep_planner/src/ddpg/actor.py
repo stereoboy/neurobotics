@@ -24,9 +24,10 @@ PLOT_STEP = 10
 
 class ActorNetwork:
 
-    def __init__(self, frontend, action_size, session, summary_writer, training_step_variable):
+    def __init__(self, frontend, layers, action_size, session, summary_writer, training_step_variable):
 
         self.graph = session.graph
+        self.layers = layers
 
         with self.graph.as_default():
 
@@ -114,20 +115,16 @@ class ActorNetwork:
 
     def create_base_network(self, inputs):
 
-        # dense layer1
         out = inputs
-        out = tf.layers.dense(inputs=out, units=FULLY_LAYER1_SIZE,
-                kernel_initializer=self.custom_initializer_for_dense(),
-                kernel_regularizer=tf.contrib.layers.l2_regularizer(BASE_WEIGHT_DECAY),
-                bias_initializer=tf.zeros_initializer(),
-                activation=tf.nn.relu)
-        # dense layer2
-        out = tf.layers.dense(inputs=out, units=FULLY_LAYER2_SIZE,
-                kernel_initializer=self.custom_initializer_for_dense(),
-                kernel_regularizer=tf.contrib.layers.l2_regularizer(BASE_WEIGHT_DECAY),
-                bias_initializer=tf.zeros_initializer(),
-                activation=tf.nn.relu)
-        # dense layer3
+
+        for layer_size in self.layers:
+            out = tf.layers.dense(inputs=out, units=layer_size,
+                    kernel_initializer=self.custom_initializer_for_dense(),
+                    kernel_regularizer=tf.contrib.layers.l2_regularizer(BASE_WEIGHT_DECAY),
+                    bias_initializer=tf.zeros_initializer(),
+                    activation=tf.nn.relu)
+
+        # final dense layer
         out = tf.layers.dense(inputs=out, units=self.action_size,
                 kernel_initializer=self.custom_initializer_for_final_dense(),
                 kernel_regularizer=tf.contrib.layers.l2_regularizer(BASE_WEIGHT_DECAY),

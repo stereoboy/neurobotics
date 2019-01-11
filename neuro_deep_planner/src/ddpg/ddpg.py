@@ -43,18 +43,21 @@ VISUALIZE_BUFFER = False
 SAVE_STEP = 10000
 
 # Max training step
-MAX_TRAINING_STEP = 3e6
+DEFAULT_MAX_TRAINING_STEP = 1e6
 
 # Max training step with noise
 MAX_NOISE_STEP = 3000000
 
 class DDPG:
 
-    def __init__(self, state_shapes, batch_size, action_bounds, data_path, data_manager=None):
+    def __init__(self, session, state_shapes, layers, batch_size, action_bounds, data_path, data_manager=None, max_training_step=DEFAULT_MAX_TRAINING_STEP):
 
         self.data_path = data_path
 
         self.batch_size = batch_size
+
+        self.layers = layers
+        self.max_training_step = max_training_step
 
         # path to tensorboard data
         self.tflog_path = data_path + '/tf_logs'
@@ -78,9 +81,7 @@ class DDPG:
         self.action_bounds = action_bounds
 
         # Initialize our session
-#        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
-#        self.session = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
-        self.session = tf.InteractiveSession()
+        self.session = session
         self.graph = self.session.graph
 
         with self.graph.as_default():
@@ -117,18 +118,14 @@ class DDPG:
             self.training_step_variable = tf.Variable(0, name='global_step', trainable=False)
             self.episode_count_variable = tf.Variable(0, name='episode_count', trainable=False)
             self.episode_count_update = tf.assign(self.episode_count_variable, self.episode_count_variable + 1)
-            conv_layers = [(4, 2, 32), (4, 2, 32), (4, 2, 32)]
-            #conv_layers = [(4, 2, 64), (4, 2, 64), (4, 2, 64)]
-            #conv_layers = [(8, 4, 32), (4, 2, 64), (3, 1, 64)]
-            #conv_layers = [(8, 4, 32), (4, 2, 64), (4, 2, 64)]
-            #conv_layers = [(8, 4, 32), (4, 2, 64), (3, 1, 64)]
+            conv_layers = self.layers['actor']['frontend']
+            actor_layers = self.layers['actor']['backend']
             self.frontend_network0 = FrontEndNetwork('frontend0', self.map_inputs, conv_layers, self.session, self.summary_writer, self.training_step_variable)
-            self.actor_network = ActorNetwork(self.frontend_network0, self.action_dim, self.session, self.summary_writer, self.training_step_variable)
-            conv_layers = [(8, 4, 32), (4, 2, 64), (4, 3, 64)]
-            #conv_layers = [(8, 4, 64), (4, 2, 128), (4, 3, 128)]
-            #conv_layers = [(8, 4, 32), (4, 2, 64), (3, 1, 64)]
+            self.actor_network = ActorNetwork(self.frontend_network0, actor_layers, self.action_dim, self.session, self.summary_writer, self.training_step_variable)
+            conv_layers = self.layers['critic']['frontend']
+            critic_layers = self.layers['critic']['backend']
             self.frontend_network1 = FrontEndNetwork('frontend1', self.map_inputs, conv_layers, self.session, self.summary_writer, self.training_step_variable)
-            self.critic_network = CriticNetwork(self.frontend_network1, self.action_dim, self.session, self.summary_writer)
+            self.critic_network = CriticNetwork(self.frontend_network1, (512, 512), self.action_dim, self.session, self.summary_writer)
 
             with tf.variable_scope('mean_return'):
                 self.mean_return = tf.placeholder(tf.float32, name="mean_return")
@@ -268,7 +265,7 @@ class DDPG:
         return clipped_action
 
     def is_running(self):
-        if self.training_step > MAX_TRAINING_STEP:
+        if self.training_step > self.max_training_step:
             return False
         return True
 

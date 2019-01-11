@@ -81,14 +81,39 @@ class PlannerNode(object):
     def update_im(self, *args):
         return [ self.vis_im ]
 
+    def init_tf_agent(self):
+
+        actor_conv_layers = [(4, 2, 32), (4, 2, 32), (4, 2, 32)]
+        #actor_conv_layers = [(4, 2, 64), (4, 2, 64), (4, 2, 64)]
+        #actor_conv_layers = [(8, 4, 32), (4, 2, 64), (3, 1, 64)]
+        #actor_conv_layers = [(8, 4, 32), (4, 2, 64), (4, 2, 64)]
+        #actor_conv_layers = [(8, 4, 32), (4, 2, 64), (3, 1, 64)]
+        actor_layers = (200, 200)
+
+        critic_conv_layers = [(8, 4, 32), (4, 2, 64), (4, 3, 64)]
+        #critic_conv_layers = [(8, 4, 64), (4, 2, 128), (4, 3, 128)]
+        #critic_conv_layers = [(8, 4, 32), (4, 2, 64), (3, 1, 64)]
+        critic_layers = (512, 512)
+
+        layers = {'actor':{'frontend':actor_conv_layers, 'backend':actor_layers},
+                'critic':{'frontend':critic_conv_layers, 'backend':critic_layers},}
+
+        # Initialize tf session
+#        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
+#        self.session = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+        session = tf.InteractiveSession()
+
+        data_manager = DQNReplayBuffer(os.path.join(FLAGS.dir, 'experiences'), max_memory_size=1e6, start_size=5e4) if FLAGS.mode == 'train' else None
+        agent = DDPG(session, self.front_end.shapes, layers, BATCH_SIZE, action_bounds_dict[self.robot_type], FLAGS.dir, data_manager=data_manager, max_training_step=3e6)
+        return agent
+
     def run(self):
         print("###################################################################")
         print("mode: {}".format(FLAGS.mode))
         print("robot_type: {}".format(self.robot_type))
         print("###################################################################")
 
-        data_manager = DQNReplayBuffer(os.path.join(FLAGS.dir, 'experiences'), max_memory_size=1e6, start_size=2e4) if FLAGS.mode == 'train' else None
-        self.agent = DDPG(self.front_end.shapes, BATCH_SIZE, action_bounds_dict[self.robot_type], FLAGS.dir, data_manager=data_manager)
+        self.agent = self.init_tf_agent()
 
         data = {'controller_frequency': self.controller_frequency, 'transition_frame_interval': self.transition_frame_interval}
         with open(os.path.join(self.agent.data_path, 'configuration.txt'), 'w') as f:
