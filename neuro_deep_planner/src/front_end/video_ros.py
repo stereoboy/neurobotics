@@ -60,10 +60,16 @@ class VideoROSFrontEnd(FrontEnd):
             target_img = cv2.imread(filepath)
             print("\ttarget image: {} ({})".format(filepath, target_img.shape))
             target_img = cv2.resize(target_img, (w, h), interpolation=cv2.INTER_NEAREST)
-            info['png'] = target_img
+            gray_img   = cv2.cvtColor(target_img, cv2.COLOR_BGR2GRAY)
             if CHANNEL_SIZE == 1:
-                info['png'] = cv2.cvtColor(info['png'], cv2.COLOR_BGR2GRAY)
-            info['coeffs'][1] = 1.0/np.sum((target_img != (0, 0, 0)).all(axis=2))
+                info['png'] = gray_img
+                info['masked_area'] = np.sum((gray_img != 0))
+            elif CHANNEL_SIZE == 3:
+                info['png'] = target_img
+                info['masked_area'] = np.sum((target_img != (0, 0, 0)).all(axis=2))
+            info['coeffs'][1] = 1.0/info['masked_area']
+            _, mask = cv2.threshold(gray_img, 1, 255, cv2.THRESH_BINARY)
+            info['mask'] = mask
         print(self.target_img_infos)
         print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 
@@ -109,21 +115,27 @@ class VideoROSFrontEnd(FrontEnd):
         for info in self.target_img_infos:
             target_img = info['png']
             coeffs = info['coeffs']
+            mask = info['mask']
+            target_masked_area = info['masked_area']
             diff = cv2.absdiff(cv_image, target_img)
+            diff = cv2.bitwise_and(diff, diff, mask=mask)
+
             if CHANNEL_SIZE == 3:
-                mask = np.sum(diff, axis=2)
-            else:
-                mask = diff
-            mask = (mask == 0.0)
-            mask = mask.astype(np.uint8)
-            reward = coeffs[0]*coeffs[1]*np.sum(mask) + coeffs[2]
-            img = cv2.bitwise_and(cv_image, cv_image, mask=mask)
-            cv2.putText(img, str(reward),(10,25), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,255), 1)
-            cv2.putText(img, str(self.done),(10,45), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,255), 1)
+                diff = np.sum(diff, axis=2)
+            diff = (diff > 0.0)
+            num_overlapped_pixels = target_masked_area - np.sum(diff)
+            reward = coeffs[0]*coeffs[1]*num_overlapped_pixels + coeffs[2]
+            temp_mask = mask - 255*(diff==True).astype(np.uint8)
+            img = cv2.bitwise_and(cv_image, cv_image, mask=temp_mask)
+            cv2.putText(img, str(reward),(10,25), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255,255,255), 1)
+            cv2.putText(img, str(self.done),(10,45), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255,255,255), 1)
             self.reward_disps.append(target_img)
             self.reward_disps.append(img)
             total_reward += reward
-        print("reward: {}".format(reward))
+            #print('coeffs', coeffs)
+            #print("reward for {} => {}", info['filename'], reward)
+
+        print("calculate_reward return reward: {}".format(total_reward))
         return total_reward
 
     def decide_done(self, state, reward):
