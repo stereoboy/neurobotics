@@ -20,6 +20,8 @@ from front_end import FrontEnd
 
 FRAME_SIZE = 4
 
+CHANNEL_SIZE = 1
+
 Target = collections.namedtuple('Target', field_names=['color', 'loc'])
 class VideoROSFrontEnd(FrontEnd):
     def __init__(self, target_img_dir):
@@ -38,7 +40,7 @@ class VideoROSFrontEnd(FrontEnd):
         self.__pub2 = rospy.Publisher("/ue4/robot/ctrl/move", Twist, queue_size=10)
 
         #self.shapes = [(FRAME_SIZE*3, 240/2, 320/2)]
-        self.shapes = [(FRAME_SIZE*3, 84, 84)]
+        self.shapes = [(FRAME_SIZE*CHANNEL_SIZE, 84, 84)]
         h, w = self.shapes[0][1:]
 
         self.target_marker_img = cv2.imread(os.path.join(target_img_dir, 'target_marker_img.png'))
@@ -59,6 +61,8 @@ class VideoROSFrontEnd(FrontEnd):
             print("\ttarget image: {} ({})".format(filepath, target_img.shape))
             target_img = cv2.resize(target_img, (w, h), interpolation=cv2.INTER_NEAREST)
             info['png'] = target_img
+            if CHANNEL_SIZE == 1:
+                info['png'] = cv2.cvtColor(info['png'], cv2.COLOR_BGR2GRAY)
             info['coeffs'][1] = 1.0/np.sum((target_img != (0, 0, 0)).all(axis=2))
         print(self.target_img_infos)
         print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
@@ -75,8 +79,11 @@ class VideoROSFrontEnd(FrontEnd):
     def build_state(self):
         # video state only
         if len(self.buffer) == FRAME_SIZE:
-            transposed = [ np.transpose(x, (2, 0, 1)) for x in self.buffer]
-            stacked = np.concatenate(transposed, axis=0)
+            if CHANNEL_SIZE > 1:
+                transposed = [ np.transpose(x, (2, 0, 1)) for x in self.buffer]
+                stacked = np.concatenate(transposed, axis=0)
+            else:
+                stacked = np.stack(self.buffer, axis=0)
             return stacked
 
     def calculate_reward(self, state):
@@ -95,17 +102,22 @@ class VideoROSFrontEnd(FrontEnd):
 #        cv2.putText(self.reward_disp, str(countB),(10,40), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,50), 1)
 #        cv2.putText(self.reward_disp, str(countA - countB),(10,55), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,50), 1)
 #        cv2.imshow('reward', disp)
+
+        cv_image = self.cv_image
         total_reward = 0
         self.reward_disps = []
         for info in self.target_img_infos:
             target_img = info['png']
             coeffs = info['coeffs']
-            diff = cv2.absdiff(self.cv_image, target_img)
-            mask = np.sum(diff, axis=2)
+            diff = cv2.absdiff(cv_image, target_img)
+            if CHANNEL_SIZE == 3:
+                mask = np.sum(diff, axis=2)
+            else:
+                mask = diff
             mask = (mask == 0.0)
             mask = mask.astype(np.uint8)
             reward = coeffs[0]*coeffs[1]*np.sum(mask) + coeffs[2]
-            img = cv2.bitwise_and(self.cv_image, self.cv_image, mask=mask)
+            img = cv2.bitwise_and(cv_image, cv_image, mask=mask)
             cv2.putText(img, str(reward),(10,25), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,255), 1)
             cv2.putText(img, str(self.done),(10,45), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,255), 1)
             self.reward_disps.append(target_img)
@@ -125,10 +137,17 @@ class VideoROSFrontEnd(FrontEnd):
             h, w = self.shapes[0][1:]
             print(h, w)
             cv_image = cv2.resize(cv_image, (w, h), interpolation=cv2.INTER_NEAREST)
-            _, mask_bg = cv2.threshold(cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY), 1, 255, cv2.THRESH_BINARY_INV)
-            img_bg = cv2.bitwise_and(self.target_marker_img, self.target_marker_img, mask=mask_bg)
-            #cv_image = cv2.addWeighted(cv_image, 0.7, self.target_marker_img, 0.3, 0.0)
-            self.cv_image = cv_image + img_bg
+            if CHANNEL_SIZE == 1:
+                cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+                _, mask_bg = cv2.threshold(cv_image, 1, 255, cv2.THRESH_BINARY_INV)
+                img_bg = cv2.bitwise_and(self.target_marker_img, self.target_marker_img, mask=mask_bg)
+                self.cv_image = cv_image + cv2.cvtColor(img_bg, cv2.COLOR_BGR2GRAY)
+           
+            elif CHANNEL_SIZE == 3:
+                _, mask_bg = cv2.threshold(cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY), 1, 255, cv2.THRESH_BINARY_INV)
+                img_bg = cv2.bitwise_and(self.target_marker_img, self.target_marker_img, mask=mask_bg)
+                #cv_image = cv2.addWeighted(cv_image, 0.7, self.target_marker_img, 0.3, 0.0)
+                self.cv_image = cv_image + img_bg
             self.buffer.append(self.cv_image)
 
             # FRAME END #
@@ -164,7 +183,9 @@ class VideoROSFrontEnd(FrontEnd):
         with self.thread_lock:
             if len(self.buffer) == FRAME_SIZE:
                 if self.h_divider is None:
-                    self.h_divider = np.full((self.cv_image.shape[0], 10, self.cv_image.shape[2]), (0, 0, 0), dtype=np.uint8)
+                    h, w = self.cv_image.shape[:2]
+                    temp_shape = (h, 10) if CHANNEL_SIZE == 1 else (h, 10, self.cv_image.shape[2]) # replace width only with 10
+                    self.h_divider = np.zeros(temp_shape, dtype=np.uint8)
 
                 temp = []
                 move = np.zeros(self.buffer[0].shape, dtype=np.float32)
@@ -177,6 +198,7 @@ class VideoROSFrontEnd(FrontEnd):
                 for img in self.reward_disps:
                     temp.append(self.h_divider)
                     temp.append(img)
+
                 disp = np.hstack(temp)
         if disp is not None:
             h, w = disp.shape[:2]
