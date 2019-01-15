@@ -52,11 +52,9 @@ class DDPG:
 
     def __init__(self, session, state_shapes, layers, batch_size, action_bounds, data_path, data_manager=None, max_training_step=DEFAULT_MAX_TRAINING_STEP):
 
-        self.data_path = data_path
-
-        self.batch_size = batch_size
-
         self.layers = layers
+        self.batch_size = batch_size
+        self.data_path = data_path
         self.max_training_step = max_training_step
 
         # path to tensorboard data
@@ -118,6 +116,7 @@ class DDPG:
             self.training_step_variable = tf.Variable(0, name='global_step', trainable=False)
             self.episode_count_variable = tf.Variable(0, name='episode_count', trainable=False)
             self.episode_count_update = tf.assign(self.episode_count_variable, self.episode_count_variable + 1)
+
             conv_layers = self.layers['actor']['frontend']
             actor_layers = self.layers['actor']['backend']
             self.frontend_network0 = FrontEndNetwork('frontend0', self.map_inputs, conv_layers, self.session, self.summary_writer, self.training_step_variable)

@@ -57,7 +57,7 @@ class PlannerNode(object):
     def update_im(self, *args):
         return [ self.vis_im ]
 
-    def init_tf_agent(self):
+    def init_tf_ddpg_agent(self):
         import tensorflow as tf
 
         actor_conv_layers = [(4, 2, 32), (4, 2, 32), (4, 2, 32)]
@@ -81,7 +81,24 @@ class PlannerNode(object):
         session = tf.InteractiveSession()
 
         data_manager = DQNReplayBuffer(os.path.join(self.options.dir, 'experiences'), max_memory_size=1e6, start_size=2e3) if self.options.mode == 'train' else None
-        agent = DDPG(session, [(4, 86, 86)], layers, BATCH_SIZE, action_bounds_dict[self.robot_type], self.options.dir, data_manager=data_manager, max_training_step=1e6)
+        agent = DDPG(session, [(4, 86, 86)], layers, BATCH_SIZE, action_bounds_dict[self.robot_type], self.options.dir, data_manager=data_manager, max_training_step=3e6)
+        return agent
+
+    def init_tf_dqn_agent(self):
+        import tensorflow as tf
+
+        value_conv_layers = [(8, 4, 32), (4, 2, 64), (3, 1, 64)]
+        value_layers = (512, 512)
+
+        layers = {'frontend':value_conv_layers, 'backend':value_layers}
+
+        # Initialize tf session
+#        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
+#        self.session = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+        session = tf.InteractiveSession()
+
+        data_manager = DQNReplayBuffer(os.path.join(self.options.dir, 'experiences'), max_memory_size=1e6, start_size=5e4) if self.options.mode == 'train' else None
+        agent = DQN(session, [(4, 86, 86)], layers, BATCH_SIZE, action_bounds_dict[self.robot_type], action_res=3, data_path=self.options.dir, data_manager=data_manager, max_training_step=3e6)
         return agent
 
     def run(self):
@@ -90,6 +107,7 @@ class PlannerNode(object):
         parser.add_argument('--gui', action="store_true", default=True)
         parser.add_argument('--mode', action="store", dest='mode', default='train')
         parser.add_argument('--dir', action="store", dest='dir', default='./rl_nav_data')
+        parser.add_argument('--agent', action="store", dest='agent', default='ddpg')
 
         self.options=parser.parse_args(sys.argv[1:])
 
@@ -97,9 +115,13 @@ class PlannerNode(object):
         print("mode: {}".format(self.options.mode))
         print("robot_type: {}".format(self.robot_type))
         print("logdir: {}".format(self.options.dir))
+        print("agent: {}".format(self.options.agent))
         print("###################################################################")
 
-        self.agent = self.init_tf_agent()
+        if self.options.agent == 'ddpg':
+            self.agent = self.init_tf_ddpg_agent()
+        elif self.options.agent == 'dqn':
+            self.agent = self.init_tf_dqn_agent()
 
         data = {'controller_frequency': self.controller_frequency, 'transition_frame_interval': self.transition_frame_interval}
         with open(os.path.join(self.agent.data_path, 'configuration.txt'), 'w') as f:
