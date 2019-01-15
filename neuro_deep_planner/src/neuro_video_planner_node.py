@@ -106,7 +106,7 @@ class PlannerNode(object):
     def run(self):
 
         parser = argparse.ArgumentParser(description='self controller based on video only')
-        parser.add_argument('--gui', action="store_true", default=True)
+        parser.add_argument('--gui', action="store_true", default=False)
         parser.add_argument('--mode', action="store", dest='mode', default='train')
         parser.add_argument('--dir', action="store", dest='dir', default='./rl_nav_data')
 
