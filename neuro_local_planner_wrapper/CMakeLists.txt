@@ -55,4 +55,8 @@ add_library(neuro_local_planner_wrapper src/neuro_local_planner_wrapper.cpp)
 
 add_dependencies(neuro_local_planner_wrapper ${catkin_EXPORTED_TARGETS})
 
+# https://answers.ros.org/question/188982/message-headers-wont-build-first/
+# https://github.com/ros/catkin_tutorials/blob/master/create_package_pubsub/catkin_ws/src/beginner_tutorials/CMakeLists.txt
+add_dependencies(neuro_local_planner_wrapper neuro_local_planner_wrapper_generate_messages_cpp)
+
 target_link_libraries(neuro_local_planner_wrapper ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
