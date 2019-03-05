@@ -104,7 +104,7 @@ class PlannerNode(object):
     def run(self):
 
         parser = argparse.ArgumentParser(description='self controller based on costmap')
-        parser.add_argument('--gui', action="store_true", default=True)
+        parser.add_argument('--gui', action="store_true", default=False)
         parser.add_argument('--mode', action="store", dest='mode', default='train')
         parser.add_argument('--dir', action="store", dest='dir', default='./rl_nav_data')
         parser.add_argument('--agent', action="store", dest='agent', default='ddpg')
@@ -146,10 +146,14 @@ class PlannerNode(object):
                     last_print_time = math.floor(elapsed_time.seconds/PRINT_INTERVAL)*PRINT_INTERVAL
                     rospy.logwarn("#################################################################### %s"%(elapsed_time))
 
-                if self.front_end.new_msg:
+                if self.front_end.is_ready():
+                    self.front_end.frame_begin()
                     last_msg_time = datetime.datetime.now()
-                    #self.front_end.show_input()
+                    if self.options.gui:
+                        self.front_end.show_input()
+
                     state, reward, done = self.front_end.step()
+
                     if not done:
                         # Send back the action to execute
                         if isinstance(state, list):
@@ -161,6 +165,8 @@ class PlannerNode(object):
                     if self.options.mode == 'train':
                         self.agent.set_experience([state], reward, done)
                     self.front_end.new_msg = False
+
+                    self.front_end.frame_end()
                 # Train the network!
                 if self.options.mode == 'train':
                     self.agent.train()
@@ -173,10 +179,12 @@ class PlannerNode(object):
                     rospy.logwarn("####################################################################")
                     break
 
-                #ch = cv2.waitKey(1)
+                if self.options.gui:
+                    ch = cv2.waitKey(1)
+                    if ch == 27:
+                        break
                 #rate.sleep()
-                #if ch == 27:
-                #    break
+
         except rospy.ROSInterruptException:
             sys.exit()
 
