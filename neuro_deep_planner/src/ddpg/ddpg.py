@@ -102,7 +102,7 @@ class DDPG:
             self.action = np.zeros(2, dtype='float')
 
             # Initialize the grad inverter object to keep the action bounds
-            self.grad_inv = GradInverter(self.action_bounds[0], self.action_bounds[1], self.session)
+            self.grad_inv = GradInverter(self.action_bounds, self.session)
 
             # Initialize summary writers to plot variables during training
             #self.summary_op = tf.merge_all_summaries()

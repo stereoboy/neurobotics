@@ -33,7 +33,7 @@ BATCH_SIZE = 32
 DATA_PATH = os.path.expanduser('~') + '/rl_nav_data'
 
 action_bounds_dict = {
-    'holonomic': [[-0.4, 0.4], [-0.4, 0.4]],
+    'holonomic': [[-0.4, 0.4], [-0.4, 0.4],],
     'nonholonomic':  [[-0.4, 0.4], [-0.1, 0.1]],
     }
 #----------------------------------------------------------------------
@@ -81,7 +81,8 @@ class PlannerNode(object):
         session = tf.InteractiveSession()
 
         data_manager = DQNReplayBuffer(os.path.join(self.options.dir, 'experiences'), max_memory_size=1e6, start_size=2e3) if self.options.mode == 'train' else None
-        agent = DDPG(session, [(4, 86, 86)], layers, BATCH_SIZE, action_bounds_dict[self.robot_type], self.options.dir, data_manager=data_manager, max_training_step=3e6)
+        action_bounds = action_bounds_dict[self.robot_type]
+        agent = DDPG(session, [(4, 86, 86)], layers, BATCH_SIZE, action_bounds, self.options.dir, data_manager=data_manager, max_training_step=3e6)
         return agent
 
     def init_tf_dqn_agent(self):
@@ -98,7 +99,8 @@ class PlannerNode(object):
         session = tf.InteractiveSession()
 
         data_manager = DQNReplayBuffer(os.path.join(self.options.dir, 'experiences'), max_memory_size=1e6, start_size=5e4) if self.options.mode == 'train' else None
-        agent = DQN(session, [(4, 86, 86)], layers, BATCH_SIZE, action_bounds_dict[self.robot_type], action_res=3, data_path=self.options.dir, data_manager=data_manager, max_training_step=3e6)
+        action_bounds = action_bounds_dict[self.robot_type]
+        agent = DQN(session, [(4, 86, 86)], layers, BATCH_SIZE, action_bounds, action_res=3, data_path=self.options.dir, data_manager=data_manager, max_training_step=3e6)
         return agent
 
     def run(self):

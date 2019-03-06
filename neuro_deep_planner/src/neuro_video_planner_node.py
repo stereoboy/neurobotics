@@ -55,7 +55,7 @@ class PlannerNode(object):
             self.transition_frame_interval = rospy.get_param("/move_base/NeuroLocalPlannerWrapper/transition_frame_interval")
 
         self.timeout_count = 0
-        self.max_timeout_count = 30
+        self.max_timeout_count = 100
 
         self.reset_pub = rospy.Publisher("/ue4/reset", Float32, queue_size=10)
 
@@ -100,7 +100,8 @@ class PlannerNode(object):
         session = tf.InteractiveSession()
 
         data_manager = DQNReplayBuffer(os.path.join(self.options.dir, 'experiences'), max_memory_size=1e6, start_size=5e4) if self.options.mode == 'train' else None
-        agent = DDPG(session, self.front_end.shapes, layers, BATCH_SIZE, action_bounds_dict[self.robot_type], self.options.dir, data_manager=data_manager, max_training_step=3e6)
+        action_bounds = action_bounds_dict[self.robot_type]
+        agent = DDPG(session, self.front_end.shapes, layers, BATCH_SIZE, action_bounds, self.options.dir, data_manager=data_manager, max_training_step=3e6)
         return agent
 
     def run(self):

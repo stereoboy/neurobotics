@@ -6,21 +6,20 @@ import tensorflow as tf
 #
 class GradInverter:
 
-    def __init__(self, action1_bounds, action2_bounds, session):
+    def __init__(self, action_bounds, session):
         self.graph = session.graph
         with self.graph.as_default():
             self.sess = session
 
-            self.action_bounds = [[action1_bounds[1], action2_bounds[1]],
-                                  [action1_bounds[0], action2_bounds[0]]]
-
-            self.action_size = len(self.action_bounds[0])
+            self.action_size = len(action_bounds)
             self.action_input = tf.placeholder(tf.float32, [None, self.action_size])
 
-            self.p_max = tf.constant(self.action_bounds[0], dtype=tf.float32)
-            self.p_min = tf.constant(self.action_bounds[1], dtype=tf.float32)
+            action_bounds_max = [ bound[1] for bound in action_bounds]
+            action_bounds_min = [ bound[0] for bound in action_bounds]
+            self.p_max = tf.constant(action_bounds_max, dtype=tf.float32)
+            self.p_min = tf.constant(action_bounds_min, dtype=tf.float32)
 
-            self.p_range = tf.constant([x - y for x, y in zip(self.action_bounds[0], self.action_bounds[1])],
+            self.p_range = tf.constant([x - y for x, y in zip(action_bounds_max, action_bounds_min)],
                                        dtype=tf.float32)
 
             self.p_diff_max = tf.div(-self.action_input + self.p_max, self.p_range)
