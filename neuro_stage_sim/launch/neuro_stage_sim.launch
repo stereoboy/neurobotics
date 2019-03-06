@@ -59,21 +59,9 @@
   </node>
 
   <!--  ***************** Robot Model *****************  -->
-  <include file="$(find turtlebot_bringup)/launch/includes/robot.launch.xml">
-    <arg name="base" value="$(arg base)" />
-    <arg name="stacks" value="$(arg stacks)" />
-    <arg name="3d_sensor" value="$(arg 3d_sensor)" />
-  </include>
-  <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
-    <param name="use_gui" value="true"/>
-  </node>
-
-  <!-- Command Velocity multiplexer -->
-  <node pkg="nodelet" type="nodelet" name="mobile_base_nodelet_manager" args="manager"/>
-  <node pkg="nodelet" type="nodelet" name="cmd_vel_mux" args="load yocs_cmd_vel_mux/CmdVelMuxNodelet mobile_base_nodelet_manager">
-    <param name="yaml_cfg_file" value="$(find turtlebot_bringup)/param/mux.yaml"/>
-    <remap from="cmd_vel_mux/output" to="mobile_base/commands/velocity"/>
-  </node>
+  <param name="robot_description" command="$(find xacro)/xacro --inorder $(find neuro_stage_sim)/urdf/robot.urdf.xacro" />
+  <param name="use_gui" value="true"/>
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="state_publisher" />
 
   <!--  ************** Navigation  ***************  -->
   <include file="$(find neuro_stage_sim)/launch/move_base.launch.xml">
