@@ -1,0 +1,84 @@
+<?xml version="1.0"?>
+<!-- reference: ros-kinetic-pr2-description-1.12.0/robots/pr2.urdf.xacro -->
+<robot xmlns:sensor="http://playerstage.sourceforge.net/gazebo/xmlschema/#sensor"
+       xmlns:controller="http://playerstage.sourceforge.net/gazebo/xmlschema/#controller"
+       xmlns:interface="http://playerstage.sourceforge.net/gazebo/xmlschema/#interface"
+       xmlns:xacro="http://playerstage.sourceforge.net/gazebo/xmlschema/#interface"
+       name="robot" >
+
+  <xacro:property name="M_PI" value="3.1415926535897931" />
+  
+  <xacro:property name="main_cam_tilt_init_value" value="${-20* M_PI/180.0}" />
+  <xacro:property name="main_cam_size_x" value="0.20" />
+  <xacro:property name="main_cam_size_y" value="0.1" />
+  <xacro:property name="main_cam_size_z" value="0.1" />
+
+  <material name="white">
+    <color rgba="1 1 1 1" />
+  </material>
+  
+  <material name="red">
+    <color rgba="0.5 0 0 1" />
+  </material>
+
+  <material name="green">
+    <color rgba="0 0.5 0 1" />
+  </material>
+
+  <material name="blue">
+    <color rgba="0 0 0.5 1" />
+  </material>
+  
+  <material name="black">
+    <color rgba="0.1 0.1 0.1 1" />
+  </material>
+
+  <link name="base_footprint"/>
+  
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+  </joint>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0.0 0.0 0.2" rpy="0 0 0"/>
+      <geometry>
+        <cylinder length="0.4" radius="0.15"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+
+    <collision>
+      <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder length="0.4" radius="0.15"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="main_cam_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="main_cam_link"/>
+    <origin xyz="0.0 0.0 0.4" rpy="0 0 0"/>
+  </joint>
+  
+  <link name="main_cam_link">
+    <visual>
+      <origin xyz="0.0 0.0 ${0.5*main_cam_size_z}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${main_cam_size_x} ${main_cam_size_y} ${main_cam_size_z}" />
+      </geometry>
+      <material name="red"/>
+    </visual>
+
+    <collision>
+      <origin xyz="0.0 0.0 ${0.5*main_cam_size_z}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${main_cam_size_x} ${main_cam_size_y} ${main_cam_size_z}" />
+      </geometry>
+    </collision>
+  </link>
+
+</robot>
