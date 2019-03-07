@@ -2,8 +2,7 @@
 #include <pluginlib/class_list_macros.h>
 
 //register this planner as a RecoveryBehavior plugin
-PLUGINLIB_DECLARE_CLASS(neuro_fake_recovery, NeuroFakeRecovery, neuro_fake_recovery::NeuroFakeRecovery,
-                        nav_core::RecoveryBehavior)
+PLUGINLIB_EXPORT_CLASS(neuro_fake_recovery::NeuroFakeRecovery, nav_core::RecoveryBehavior)
 
 namespace neuro_fake_recovery
 {
