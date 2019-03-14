@@ -3,11 +3,13 @@ import numpy as np
 import cv2
 import tensorflow as tf
 import sys
+import copy
 import collections
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import CompressedImage
 from sensor_msgs.msg import ChannelFloat32
+from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Twist, Vector3, PolygonStamped
 from neuro_local_planner_wrapper.msg import Transition
 import threading
@@ -23,6 +25,7 @@ FRAME_SIZE = 4
 CHANNEL_SIZE = 1
 
 Target = collections.namedtuple('Target', field_names=['color', 'loc'])
+ActionEntity = collections.namedtuple('ActionEntity', field_names=['name', 'size', 'callback', 'misc'])
 class VideoROSFrontEnd(FrontEnd):
     def __init__(self, target_img_dir):
 
@@ -38,9 +41,13 @@ class VideoROSFrontEnd(FrontEnd):
 
         self.__pub = rospy.Publisher("neuro_deep_planner/action", Twist, queue_size=10)
         self.__pub2 = rospy.Publisher("/ue4/robot/ctrl/move", Twist, queue_size=10)
+        current_joint_states = None
+        self.__joint_state_sub = rospy.Subscriber("/ue4/robot/joint_states", JointState, self.joint_state_callback)
+        self.__joint_state_pub = rospy.Publisher("/ue4/robot/ctrl/joint_states", JointState, queue_size=10)
 
         #self.shapes = [(FRAME_SIZE*3, 240/2, 320/2)]
         self.shapes = [(FRAME_SIZE*CHANNEL_SIZE, 84, 84)]
+        #self.shapes = [(FRAME_SIZE*CHANNEL_SIZE, 128, 128)]
         h, w = self.shapes[0][1:]
 
         self.target_marker_img = cv2.imread(os.path.join(target_img_dir, 'target_marker_img.png'))
@@ -78,6 +85,9 @@ class VideoROSFrontEnd(FrontEnd):
         self.frame_id = 0
         self.status_cnt = 0
         self.debug_frame = 0
+
+        self.action_settings = [ActionEntity('move_forward_turn_right', 2, self.action_move_forward_and_turn_right, 'nonholonomic'), \
+                ActionEntity('joint_control', 2, self.action_joint, ['shoulder_lift_joint', 'wrist_3_joint'])]
 
     def get_msg_lock(self):
         return self.thread_lock
@@ -231,25 +241,59 @@ class VideoROSFrontEnd(FrontEnd):
     def frame_end(self):
         self.new_msg = False
 
-    def publish_action(self, action):
-
+    def action_move_forward_and_turn_right(self, actions, miscs):
+        # Action for Move
         # Generate msg output
         if self.robot_type == 'holonomic':
-            vel_cmd = Twist(Vector3(action[0], action[1], 0), Vector3(0, 0, 0))
+            vel_cmd = Twist(Vector3(actions[0], actions[1], 0), Vector3(0, 0, 0))
             #vel_cmd2 = Twist(Vector3(0.02*action[0], 0.02*action[1], 0), Vector3(0, 0, 0))
         elif self.robot_type == 'nonholonomic':
-            vel_cmd = Twist(Vector3(action[0], 0, 0), Vector3(0, 0, action[1]))
-            #vel_cmd2 = Twist(Vector3(0.02*action[0], 0, 0), Vector3(0, 0, action[1]))
+            vel_cmd = Twist(Vector3(actions[0], 0, 0), Vector3(0, 0, actions[1]))
+            #vel_cmd2 = Twist(Vector3(0.02*actions[0], 0, 0), Vector3(0, 0, actions[1]))
         else:
             rospy.logerr("Wrong robot_type parameter")
             sys.exit(-1)
-
-        vel_cmd = Twist(Vector3(action[0], 0, 0), Vector3(0, 0, action[1]))
+        vel_cmd = Twist(Vector3(actions[0], 0, 0), Vector3(0, 0, actions[1]))
         # Send the action back
         #self.__pub.publish(vel_cmd)
         self.__pub2.publish(vel_cmd)
 
+    def action_joint(self, actions, target_joints):
+        # Action for Joint States
+        name        = self.current_joint_states.name
+        position    = list(self.current_joint_states.position)
+        velocity    = self.current_joint_states.velocity
+        effort      = self.current_joint_states.effort
+
+        print('================================================================================================')
+        print(actions, target_joints)
+        print(self.current_joint_states)
+        print(position)
+        for i in range(len(name)):
+            n = name[i]
+            for j in range(len(target_joints)):
+                target_name = target_joints[j]
+                if n == target_name:
+                    position[i] += actions[j]
+                    target_joints.pop(j)
+                    print(n, target_name)
+                    print(position)
+                    break
+
+        next_joint_states = JointState(name=name, position=position, velocity=velocity, effort=effort)
+        print(next_joint_states)
+        self.__joint_state_pub.publish(next_joint_states)
+
+    def publish_action(self, action):
+        offset = 0
+        for action_ent in self.action_settings:
+            in_action = copy.deepcopy(action[offset:(offset + action_ent.size)])
+            in_misc   = copy.deepcopy(action_ent.misc)
+            action_ent.callback(in_action, in_misc)
+            offset += action_ent.size
+
     def reset(self):
         self.buffer.clear()
 
-
+    def joint_state_callback(self, JointState):
+        self.current_joint_states = JointState
