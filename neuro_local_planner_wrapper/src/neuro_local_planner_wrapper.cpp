@@ -287,7 +287,7 @@ namespace neuro_local_planner_wrapper
         customized_costmap_ = nav_msgs::OccupancyGrid();
 
         // header
-        customized_costmap_.header.frame_id = "/base_footprint";
+        customized_costmap_.header.frame_id = "base_footprint";
         //customized_costmap_.header.frame_id = "odom";
         customized_costmap_.header.stamp = ros::Time::now();
         customized_costmap_.header.seq = 0;
