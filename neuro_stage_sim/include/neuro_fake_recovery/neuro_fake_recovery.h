@@ -28,8 +28,7 @@ namespace neuro_fake_recovery{
              * @param global_costmap A pointer to the global_costmap used by the navigation stack
              * @param local_costmap A pointer to the local_costmap used by the navigation stack
              */
-            void initialize(std::string name, tf::TransformListener* tf,
-                            costmap_2d::Costmap2DROS* global_costmap, costmap_2d::Costmap2DROS* local_costmap);
+            virtual void initialize(std::string name, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* global_costmap, costmap_2d::Costmap2DROS* local_costmap);
 
             /**
              * @brief  Run the KeepGoingRecovery recovery behavior.

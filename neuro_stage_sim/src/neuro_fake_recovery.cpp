@@ -8,8 +8,7 @@ namespace neuro_fake_recovery
 {
     NeuroFakeRecovery::NeuroFakeRecovery(): initialized_(false){}
 
-    void NeuroFakeRecovery::initialize(std::string name, tf::TransformListener* tf,
-                                    costmap_2d::Costmap2DROS* global_costmap, costmap_2d::Costmap2DROS* local_costmap)
+    void NeuroFakeRecovery::initialize(std::string name, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* global_costmap, costmap_2d::Costmap2DROS* local_costmap)
     {
         if(!initialized_)
         {
