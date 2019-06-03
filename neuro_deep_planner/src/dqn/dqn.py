@@ -9,8 +9,6 @@ import time
 import datetime
 
 from value import QValueNetwork
-#from dqn_data_manager import DQNDataManager
-from dqn_replay_buffer import DQNReplayBuffer
 
 # How big are our mini batches
 BATCH_SIZE = 32
