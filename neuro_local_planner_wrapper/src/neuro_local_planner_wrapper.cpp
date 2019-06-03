@@ -67,7 +67,7 @@ namespace neuro_local_planner_wrapper
     }
 
     // Initialize the planner
-    void NeuroLocalPlannerWrapper::initialize(std::string name, tf::TransformListener* tf,
+    void NeuroLocalPlannerWrapper::initialize(std::string name, tf2_ros::Buffer* tf,
                                          costmap_2d::Costmap2DROS* costmap_ros)
     {
         ROS_WARN(">>>NeuroLocalPlannerWrapper::initialize()");
@@ -227,7 +227,10 @@ namespace neuro_local_planner_wrapper
             int end = std::min((int)(global_plan_.size() - 2), i + 6);
             std::vector<geometry_msgs::PoseStamped> subpath(&global_plan_[start], &global_plan_[end]);
             double yaw = calculateRotationMomentum(subpath);
-            global_plan_[i].pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, yaw); // http://docs.ros.org/api/tf/html/c++/transform__datatypes_8h.html
+            //global_plan_[i].pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, yaw); // http://docs.ros.org/api/tf/html/c++/transform__datatypes_8h.html
+            tf2::Quaternion q;
+            q.setRPY(0, 0, yaw);
+            global_plan_[i].pose.orientation = tf2::toMsg(q);
         }
 
         goal_position_ = global_plan_.back();
@@ -342,7 +345,7 @@ namespace neuro_local_planner_wrapper
     bool NeuroLocalPlannerWrapper::isCrashed(double& reward)
     {
         // Get current position of robot
-        tf::Stamped<tf::Pose> current_pose;
+      geometry_msgs::PoseStamped current_pose;
 
         if (!costmap_ros_->getRobotPose(current_pose)) // in frame odom
         {
@@ -354,7 +357,7 @@ namespace neuro_local_planner_wrapper
         unsigned int robot_x;
         unsigned int robot_y;
         boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
-        if (costmap_->worldToMap(current_pose.getOrigin().getX(), current_pose.getOrigin().getY(), robot_x, robot_y))
+        if (costmap_->worldToMap(current_pose.pose.position.x, current_pose.pose.position.y, robot_x, robot_y))
         {
             // This causes a crash not just a critical positions but a little bit before the wall
             // TODO: could be solved nicer by using a different inscribed radius, then: >= 253
@@ -370,7 +373,7 @@ namespace neuro_local_planner_wrapper
         }
         else
         {
-            ROS_ERROR("-----(%f, %f) -> (%d, %d)   // (%f, %f)", current_pose.getOrigin().getX(),current_pose.getOrigin().getY(), robot_x, robot_y, costmap_->getOriginX(), costmap_->getOriginY());
+            ROS_ERROR("-----(%f, %f) -> (%d, %d)   // (%f, %f)", current_pose.pose.position.x, current_pose.pose.position.y, robot_x, robot_y, costmap_->getOriginX(), costmap_->getOriginY());
             return false;
         }
     }
@@ -404,16 +407,15 @@ namespace neuro_local_planner_wrapper
         geometry_msgs::PoseStamped goal_position = goal_position_;
 
         // Transform current position of robot to map frame
-        geometry_msgs::PoseStamped current_pose;
         geometry_msgs::PoseStamped current_pose_to_goal_position;
         try
         {
-            tf::poseStampedTFToMsg(current_pose_, current_pose);
-            tf_->waitForTransform(  goal_position.header.frame_id, current_pose_.frame_id_,
+            tf_->canTransform(  goal_position.header.frame_id, current_pose_.header.frame_id,
                                     ros::Time(0), ros::Duration(2.0));
-            tf_->transformPose(goal_position.header.frame_id, current_pose, current_pose_to_goal_position);
+            //tf_->transformPose(goal_position.header.frame_id, current_pose, current_pose_to_goal_position);
+            tf_->transform(current_pose_, current_pose_to_goal_position, goal_position.header.frame_id);
         }
-        catch (tf::TransformException ex)
+        catch (tf2::TransformException ex)
         {
             ROS_ERROR("[failed to transform current pose to map frame to check goal position : %s", ex.what());
         }
@@ -425,8 +427,8 @@ namespace neuro_local_planner_wrapper
         if (yaw_constraint_flag_ && condition)
         {
             ROS_ERROR("pass xy_goal_tolerance");
-            double current_pose_yaw = tf::getYaw(current_pose_to_goal_position.pose.orientation);
-            double goal_yaw = tf::getYaw(goal_position.pose.orientation);
+            double current_pose_yaw = tf2::getYaw(current_pose_to_goal_position.pose.orientation);
+            double goal_yaw = tf2::getYaw(goal_position.pose.orientation);
             condition &= isSameDirection("goal", current_pose_yaw, goal_yaw);
         }
         // Check if the robot has reached the goal
@@ -455,16 +457,15 @@ namespace neuro_local_planner_wrapper
         geometry_msgs::PoseStamped goal_position = global_plan_.back();
 
         // Transform current position of robot to map frame
-        geometry_msgs::PoseStamped current_pose;
         geometry_msgs::PoseStamped current_pose_to_goal_position;
         try
         {
-            tf::poseStampedTFToMsg(current_pose_, current_pose);
-            tf_->waitForTransform(  goal_position.header.frame_id, current_pose_.frame_id_,
+            tf_->canTransform(  goal_position.header.frame_id, current_pose_.header.frame_id,
                                     ros::Time(0), ros::Duration(2.0));
-            tf_->transformPose(goal_position.header.frame_id, current_pose, current_pose_to_goal_position);
+            //tf_->transformPose(goal_position.header.frame_id, current_pose, current_pose_to_goal_position);
+            tf_->transform(current_pose_, current_pose_to_goal_position, goal_position.header.frame_id);
         }
-        catch (tf::TransformException ex)
+        catch (tf2::TransformException ex)
         {
             ROS_ERROR("[failed to transform current pose to map frame to check subgoal position : %s", ex.what());
         }
@@ -473,7 +474,7 @@ namespace neuro_local_planner_wrapper
 
         int touched_subgoal_count = 0;
         int touched_max_index = - 1;
-        double current_pose_yaw = tf::getYaw(current_pose_to_goal_position.pose.orientation);
+        double current_pose_yaw = tf2::getYaw(current_pose_to_goal_position.pose.orientation);
         for (int i = global_plan_temp.size() - 2; i >= 0; i--) // skip final goal point
         {
             geometry_msgs::PoseStamped subgoal_position = global_plan_temp[i];
@@ -484,8 +485,8 @@ namespace neuro_local_planner_wrapper
             bool condition  = dist < xy_goal_tolerance_;
             if (yaw_constraint_flag_ && condition)
             {
-                double current_pose_yaw = tf::getYaw(current_pose_to_goal_position.pose.orientation);
-                double goal_yaw = tf::getYaw(subgoal_position.pose.orientation);
+                double current_pose_yaw = tf2::getYaw(current_pose_to_goal_position.pose.orientation);
+                double goal_yaw = tf2::getYaw(subgoal_position.pose.orientation);
                 condition &= isSameDirection("subgoal", current_pose_yaw, goal_yaw);
             }
             // Check if the robot has reached the goal
@@ -756,17 +757,16 @@ namespace neuro_local_planner_wrapper
         double roll, pitch, yaw;
         int goal_tolerance_in_pixel = (int)round(xy_goal_tolerance_ / (costmap_->getSizeInMetersX()/ costmap_->getSizeInCellsX()));
         costmap_ros_->getRobotPose(current_pose_);
-        geometry_msgs::PoseStamped current_pose;
-        tf::poseStampedTFToMsg(current_pose_, current_pose);
         geometry_msgs::PoseStamped current_pose_to_map;
         try {
-            tf_->waitForTransform(  customized_costmap_.header.frame_id, current_pose.header.frame_id, ros::Time(0), ros::Duration(2.0));
-            tf_->transformPose(     customized_costmap_.header.frame_id, current_pose, current_pose_to_map);
-        } catch (tf::TransformException ex) {
+            tf_->canTransform(customized_costmap_.header.frame_id, current_pose_.header.frame_id, ros::Time(0), ros::Duration(2.0));
+            //tf_->transformPose(     customized_costmap_.header.frame_id, current_pose, current_pose_to_map);
+            tf_->transform(current_pose_, current_pose_to_map, customized_costmap_.header.frame_id);
+        } catch (tf2::TransformException ex) {
             ROS_ERROR("%s", ex.what());
         }
         //current_pose_.getBasis().getRPY(roll, pitch, yaw);
-        yaw = tf::getYaw(current_pose_to_map.pose.orientation);
+        yaw = tf2::getYaw(current_pose_to_map.pose.orientation);
 
         // Draw Center
         cv::Mat rawData(cv::Size(customized_costmap_.info.width, customized_costmap_.info.height), CV_8UC1, (void*)&(customized_costmap_.data[0]));
@@ -784,60 +784,62 @@ namespace neuro_local_planner_wrapper
         ros::Time begin, end;
         begin = ros::Time::now();
 
-        tf::StampedTransform transform;
         try
         {
-            tf_->waitForTransform(costmap_ros_->getGlobalFrameID(), customized_costmap_.header.frame_id, ros::Time(0), ros::Duration(2.0));
-            tf_->lookupTransform(costmap_ros_->getGlobalFrameID(), customized_costmap_.header.frame_id, ros::Time(0), transform);
+            tf_->canTransform(costmap_ros_->getGlobalFrameID(), customized_costmap_.header.frame_id, ros::Time(0), ros::Duration(2.0));
+            geometry_msgs::TransformStamped transform = tf_->lookupTransform(costmap_ros_->getGlobalFrameID(), customized_costmap_.header.frame_id, ros::Time(0));
+
+            unsigned int mx, my;
+            double wx, wy;
+            unsigned int value;
+            for (unsigned int i = 0; i < customized_costmap_.info.height; i++)
+            {
+                for (unsigned int j = 0; j < customized_costmap_.info.width; j++)
+                {
+                    wx = customized_costmap_.info.origin.position.x + (j + 0.5)*customized_costmap_.info.resolution;
+                    wy = customized_costmap_.info.origin.position.y + (i + 0.5)*customized_costmap_.info.resolution;
+                    geometry_msgs::Point p_prev;
+                    p_prev.x = wx;
+                    p_prev.y = wy;
+                    geometry_msgs::Point p;
+                    tf2::doTransform(p_prev, p, transform);
+                    if (costmap_->worldToMap(p.x, p.y, mx, my))
+                    {
+                        value = costmap_->getCost(mx, my);
+                        if (value == 255)
+                            customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
+                        else if (value >= 253)
+                            customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
+                    }
+                }
+            }
+    /*
+            unsigned char* data = costmap_->getCharMap();
+            for (unsigned int i = 0; i < customized_costmap_.data.size(); i++)
+            {
+                if (data[i] == 255)
+                    ;
+                else if (data[i] >= 252)
+                    customized_costmap_.data[i] = cost_translation_table_[ data[ i ]];
+            }
+    */
+     /*
+            memcpy((void *)customized_costmap_.data.data(), (void *)costmap_->getCharMap(), customized_costmap_.data.size());
+            customized_costmap_.data = costmap_data;
+            for (int i = 0; i < customized_costmap_.data.size(); i++)
+            {
+                //ROS_ERROR("%d",(unsigned char) customized_costmap_.data[i]);
+                customized_costmap_.data[i] = local_costmap.data[i];
+            }
+    */
+            end = ros::Time::now();
+            ROS_WARN("<<<%s() - elapsed time: %f", __FUNCTION__, (end - begin).toSec());
         }
-        catch (tf::TransformException ex)
+        catch (tf2::TransformException ex)
         {
             ROS_ERROR("%s", ex.what());
             return;
         }
-
-        unsigned int mx, my;
-        double wx, wy;
-        unsigned int value;
-        for (unsigned int i = 0; i < customized_costmap_.info.height; i++)
-        {
-            for (unsigned int j = 0; j < customized_costmap_.info.width; j++)
-            {
-                wx = customized_costmap_.info.origin.position.x + (j + 0.5)*customized_costmap_.info.resolution;
-                wy = customized_costmap_.info.origin.position.y + (i + 0.5)*customized_costmap_.info.resolution;
-                tf::Point p(wx, wy, 0);
-                p = transform(p);
-                if (costmap_->worldToMap(p.x(), p.y(), mx, my))
-                {
-                    value = costmap_->getCost(mx, my);
-                    if (value == 255)
-                        customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
-                    else if (value >= 253)
-                        customized_costmap_.data[i*customized_costmap_.info.width + j] = cost_translation_table_[value];
-                }
-            }
-        }
-/*
-        unsigned char* data = costmap_->getCharMap();
-        for (unsigned int i = 0; i < customized_costmap_.data.size(); i++)
-        {
-            if (data[i] == 255)
-                ;
-            else if (data[i] >= 252)
-                customized_costmap_.data[i] = cost_translation_table_[ data[ i ]];
-        }
-*/
- /*
-        memcpy((void *)customized_costmap_.data.data(), (void *)costmap_->getCharMap(), customized_costmap_.data.size());
-        customized_costmap_.data = costmap_data;
-        for (int i = 0; i < customized_costmap_.data.size(); i++)
-        {
-            //ROS_ERROR("%d",(unsigned char) customized_costmap_.data[i]);
-            customized_costmap_.data[i] = local_costmap.data[i];
-        }
-*/
-        end = ros::Time::now();
-        ROS_WARN("<<<%s() - elapsed time: %f", __FUNCTION__, (end - begin).toSec());
     }
 
     // Helper function to generate the transition msg
@@ -855,53 +857,55 @@ namespace neuro_local_planner_wrapper
         customized_costmap_.header.stamp = customized_costmap_stamp;
 
         // get transformation between robot base frame and frame of laser scan
-        tf::StampedTransform stamped_transform;
         try
         {
             // ros::Time(0) gives us the latest available transform
-            tf_->lookupTransform(laser_scan_target_frame, laser_scan_source_frame, ros::Time(0), stamped_transform);
-        }
-        catch (tf::TransformException ex)
-        {
-            ROS_ERROR("%s",ex.what());
-        }
+            geometry_msgs::TransformStamped stamped_transform = tf_->lookupTransform(laser_scan_target_frame, laser_scan_source_frame, ros::Time(0));
+            // x and y position of laser scan point in frame of laser scan
+            double x_position_laser_scan_frame;
+            double y_position_laser_scan_frame;
 
-        // x and y position of laser scan point in frame of laser scan
-        double x_position_laser_scan_frame;
-        double y_position_laser_scan_frame;
+            //        // x and y position of laser scan point in robot base frame
+            //        double x_position_robot_base_frame;
+            //        double y_position_robot_base_frame;
 
-//        // x and y position of laser scan point in robot base frame
-//        double x_position_robot_base_frame;
-//        double y_position_robot_base_frame;
-
-        // iteration over all laser scan points
-        for(unsigned int i = 0; i < laser_scan.ranges.size(); i++)
-        {
-            if ((laser_scan.ranges.at(i) > laser_scan.range_min) && (laser_scan.ranges.at(i) < laser_scan.range_max))
+            // iteration over all laser scan points
+            for(unsigned int i = 0; i < laser_scan.ranges.size(); i++)
             {
-                // get x and y coordinates of laser scan point in frame of laser scan, z coordinate is ignored as we
-                // are working with a 2D costmap
-                x_position_laser_scan_frame = laser_scan.ranges.at(i) * cos(laser_scan.angle_min
-                                                                            + i * laser_scan.angle_increment);
-                y_position_laser_scan_frame = laser_scan.ranges.at(i) * sin(laser_scan.angle_min
-                                                                            + i * laser_scan.angle_increment);
+                if ((laser_scan.ranges.at(i) > laser_scan.range_min) && (laser_scan.ranges.at(i) < laser_scan.range_max))
+                {
+                    // get x and y coordinates of laser scan point in frame of laser scan, z coordinate is ignored as we
+                    // are working with a 2D costmap
+                    x_position_laser_scan_frame = laser_scan.ranges.at(i) * cos(laser_scan.angle_min
+                            + i * laser_scan.angle_increment);
+                    y_position_laser_scan_frame = laser_scan.ranges.at(i) * sin(laser_scan.angle_min
+                            + i * laser_scan.angle_increment);
 
-                tf::Point p(x_position_laser_scan_frame, y_position_laser_scan_frame, 0.0);
-                p = stamped_transform(p);
+                    geometry_msgs::Point p_prev;
+                    p_prev.x = x_position_laser_scan_frame;
+                    p_prev.y = y_position_laser_scan_frame;
+                    geometry_msgs::Point p;
+                    //p = stamped_transform(p);
+                    tf2::doTransform(p_prev, p, stamped_transform);
 
-                // transformation to costmap coordinates
-                int x, y;
-                x = (int)round(((p.x() - customized_costmap_.info.origin.position.x)
+                    // transformation to costmap coordinates
+                    int x, y;
+                    x = (int)round(((p.x - customized_costmap_.info.origin.position.x)
                                 / costmap_->getSizeInMetersX())*customized_costmap_.info.width-0.5);
-                y = (int)round(((p.y() - customized_costmap_.info.origin.position.y)
+                    y = (int)round(((p.y - customized_costmap_.info.origin.position.y)
                                 / costmap_->getSizeInMetersY())*customized_costmap_.info.height-0.5);
 
 
-                if ((x >=0) && (y >=0) && (x < customized_costmap_.info.width) && (y < customized_costmap_.info.height))
-                {
-                    customized_costmap_.data[x + y*customized_costmap_.info.width] = 100;
+                    if ((x >=0) && (y >=0) && (x < customized_costmap_.info.width) && (y < customized_costmap_.info.height))
+                    {
+                        customized_costmap_.data[x + y*customized_costmap_.info.width] = 100;
+                    }
                 }
             }
+        }
+        catch (tf2::TransformException ex)
+        {
+            ROS_ERROR("%s",ex.what());
         }
     }
 
@@ -926,11 +930,12 @@ namespace neuro_local_planner_wrapper
             try
             {
                 pose_fixed_frame.header.stamp = customized_costmap_.header.stamp;
-                tf_->waitForTransform(customized_costmap_.header.frame_id, pose_fixed_frame.header.frame_id,
+                tf_->canTransform(customized_costmap_.header.frame_id, pose_fixed_frame.header.frame_id,
                                       customized_costmap_.header.stamp, ros::Duration(0.2));
-                tf_->transformPose(customized_costmap_.header.frame_id, pose_fixed_frame, pose_robot_base_frame);
+                //tf_->transformPose(customized_costmap_.header.frame_id, pose_fixed_frame, pose_robot_base_frame);
+                tf_->transform(pose_fixed_frame, pose_robot_base_frame, customized_costmap_.header.frame_id);
             }
-            catch (tf::TransformException ex)
+            catch (tf2::TransformException ex)
             {
                 ROS_ERROR("%s", ex.what());
             }
@@ -1023,11 +1028,12 @@ namespace neuro_local_planner_wrapper
         try
         {
             goal_position.header.stamp = customized_costmap_.header.stamp;
-            tf_->waitForTransform(customized_costmap_.header.frame_id, goal_position.header.frame_id,
+            tf_->canTransform(customized_costmap_.header.frame_id, goal_position.header.frame_id,
                                   customized_costmap_.header.stamp, ros::Duration(0.2));
-            tf_->transformPose(customized_costmap_.header.frame_id, goal_position, goal_pose_robot_base_frame);
+            //tf_->transformPose(customized_costmap_.header.frame_id, goal_position, goal_pose_robot_base_frame);
+            tf_->transform(goal_position, goal_pose_robot_base_frame, customized_costmap_.header.frame_id);
         }
-        catch (tf::TransformException ex)
+        catch (tf2::TransformException ex)
         {
             ROS_ERROR("%s", ex.what());
         }
@@ -1039,21 +1045,20 @@ namespace neuro_local_planner_wrapper
                         / costmap_->getSizeInMetersY()) * customized_costmap_.info.height - 0.5);
 #define _DRAW_CIRCLE_
 #define _DRAW_ARROW_
-        geometry_msgs::PoseStamped current_pose;
-        tf::poseStampedTFToMsg(current_pose_, current_pose);
         geometry_msgs::PoseStamped goal_pose_to_map;
         try
         {
-            tf_->waitForTransform(  customized_costmap_.header.frame_id, goal_position.header.frame_id,
+            tf_->canTransform(  customized_costmap_.header.frame_id, goal_position.header.frame_id,
                                     ros::Time(0), ros::Duration(2.0));
-            tf_->transformPose(customized_costmap_.header.frame_id, goal_position, goal_pose_to_map);
+            //tf_->transformPose(customized_costmap_.header.frame_id, goal_position, goal_pose_to_map);
+            tf_->transform(goal_position, goal_pose_to_map, customized_costmap_.header.frame_id);
         }
-        catch (tf::TransformException ex)
+        catch (tf2::TransformException ex)
         {
             ROS_ERROR("%s", ex.what());
         }
         cv::Mat rawData(cv::Size(customized_costmap_.info.width, customized_costmap_.info.height), CV_8UC1, (void*)&(customized_costmap_.data[0]));
-        double goal_yaw = tf::getYaw(goal_pose_to_map.pose.orientation);
+        double goal_yaw = tf2::getYaw(goal_pose_to_map.pose.orientation);
         cv::Point goal_to_map(goal_x, goal_y);
 
 #ifdef _DRAW_CIRCLE_

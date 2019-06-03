@@ -1,7 +1,6 @@
 #ifndef NEURO_LOCAL_PLANNER_WRAPPER_NEURO_LOCAL_PLANNER_WRAPPER_H_
 #define NEURO_LOCAL_PLANNER_WRAPPER_NEURO_LOCAL_PLANNER_WRAPPER_H_
 
-#include <tf/transform_listener.h>
 #include <angles/angles.h>
 #include <nav_msgs/Odometry.h>
 #include <costmap_2d/costmap_2d_ros.h>
@@ -22,7 +21,7 @@
 
 #include <visualization_msgs/MarkerArray.h> // to_delete
 
-#include <tf/tf.h>
+#include <tf2/utils.h>
 
 #include <fstream>
 
@@ -40,7 +39,7 @@ namespace neuro_local_planner_wrapper
             ~NeuroLocalPlannerWrapper();
 
             // Initialize the planner
-            void initialize(std::string name, tf::TransformListener* tf, costmap_2d::Costmap2DROS* costmap_ros);
+            void initialize(std::string name, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* costmap_ros);
 
             // Sets the plan
             bool setPlan(const std::vector<geometry_msgs::PoseStamped>& orig_global_plan);
@@ -98,7 +97,7 @@ namespace neuro_local_planner_wrapper
             int goal_invisible_count_;
 
             // Listener to get our pose on the map
-            tf::TransformListener* tf_;
+            tf2_ros::Buffer* tf_;
 
             // --- Publisher & Subscriber ---
 
@@ -151,7 +150,7 @@ namespace neuro_local_planner_wrapper
             geometry_msgs::Twist action_;
 
             // Our current pose
-            tf::Stamped<tf::Pose> current_pose_;
+            geometry_msgs::PoseStamped current_pose_;
 
             // The current global plan in normal and costmap coordinates
             std::vector<geometry_msgs::PoseStamped> global_plan_;

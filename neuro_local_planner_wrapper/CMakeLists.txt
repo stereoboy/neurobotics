@@ -9,7 +9,9 @@ find_package(catkin REQUIRED COMPONENTS
   pluginlib
   roscpp
   std_msgs
-  tf
+  tf2
+  tf2_geometry_msgs
+  tf2_ros
   message_generation
 )
 
@@ -46,7 +48,7 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES neuro_local_planner_wrapper
-  CATKIN_DEPENDS base_local_planner costmap_2d nav_core nav_msgs pluginlib roscpp std_msgs tf message_runtime
+  CATKIN_DEPENDS base_local_planner costmap_2d nav_core nav_msgs pluginlib roscpp std_msgs tf2_ros message_runtime
 #  DEPENDS system_lib
   DEPENDS OpenCV
 )
